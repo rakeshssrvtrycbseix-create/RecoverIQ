@@ -23,10 +23,17 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
 
-    # Razorpay (Test Mode)
+    # Razorpay Provider Configuration
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
     razorpay_webhook_secret: str = ""
+    razorpay_base_url: str = "https://api.razorpay.com/v1"
+    razorpay_timeout_seconds: float = 10.0
+
+    # Provider & Live Action Governance
+    recovery_provider: str = "mock"  # "mock" | "razorpay"
+    allow_live_financial_actions: bool = False
+    action_reconciliation_timeout_minutes: int = 15
 
     # LLM (future)
     llm_api_key: str = ""

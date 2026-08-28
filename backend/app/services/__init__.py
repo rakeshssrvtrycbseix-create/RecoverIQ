@@ -12,6 +12,10 @@ from app.services.action_dispatcher import (
     UnsafeActionPayloadError,
     action_dispatcher,
 )
+from app.services.action_reconciliation import (
+    ActionReconciliationService,
+    action_reconciliation_service,
+)
 from app.services.action_scheduler import (
     RecoveryActionScheduler,
     action_scheduler,
@@ -44,6 +48,7 @@ __all__ = [
     "ActionExecutionPersistenceError",
     "ActionNotDueError",
     "ActionPersistenceError",
+    "ActionReconciliationService",
     "ActionSchedulerError",
     "ConcurrentExecutionError",
     "InvalidActionStateError",
@@ -61,6 +66,7 @@ __all__ = [
     "UnactionableCaseError",
     "UnsafeActionPayloadError",
     "action_dispatcher",
+    "action_reconciliation_service",
     "action_scheduler",
     "payment_event_processor",
     "payment_event_service",

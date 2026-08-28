@@ -19,7 +19,7 @@ from app.models import (
     RecoveryCaseStatus,
 )
 from app.providers.base import ActionProvider, ProviderResult
-from app.providers.mock import mock_action_provider
+from app.providers.factory import ProviderFactory
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +266,7 @@ class ActionDispatcher:
             ) from exc
 
         # 9. Step B: Invoke Action Provider (External Boundary)
-        active_provider = provider or mock_action_provider
+        active_provider = provider or ProviderFactory.get_provider()
         try:
             provider_result = active_provider.execute(action)
         except Exception as exc:
