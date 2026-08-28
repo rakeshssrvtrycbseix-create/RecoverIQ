@@ -21,7 +21,7 @@ class IngestionResult:
 
 
 class PaymentEventService:
-    """Service handling payment event ingestion, deduplication, and persistence."""
+    """Service handling payment event persistence, deduplication, and async dispatch."""
 
     def ingest_event(
         self,
@@ -34,11 +34,12 @@ class PaymentEventService:
         """
         Persist an inbound payment event with database-backed idempotency.
 
-        If the event has already been persisted (detected via unique constraint
-        or lookup), the duplicate is safely recognized and returned without
-        re-triggering downstream dispatch.
+        Guarantees:
+        1. Duplicate events return is_duplicate=True without dispatch.
+        2. Database errors rollback cleanly and raise exceptions.
+        3. Fresh events are persisted and dispatched to async worker boundary.
         """
-        # 1. Quick check for existing event (optimistic fast path)
+        # 1. Optimistic fast-path check for existing event
         existing_event = (
             db.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
         )
@@ -58,7 +59,7 @@ class PaymentEventService:
                 payment_event=existing_event,
             )
 
-        # 2. Prepare new PaymentEvent entity
+        # 2. Prepare new PaymentEvent entity with sanitized payload
         new_event = PaymentEvent(
             idempotency_key=event_id,
             razorpay_event_id=event_id,
@@ -68,7 +69,7 @@ class PaymentEventService:
             processing_status=PaymentEventProcessingStatus.RECEIVED.value,
         )
 
-        # 3. Attempt database insertion (authoritative uniqueness guarantee)
+        # 3. Attempt database insertion (authoritative unique constraint check)
         try:
             db.add(new_event)
             db.commit()
@@ -82,28 +83,48 @@ class PaymentEventService:
                 },
             )
         except IntegrityError:
-            # Concurrent race condition: another request inserted with same key
+            # Concurrent race condition: another transaction committed with same key
             db.rollback()
             existing = (
                 db.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
             )
-            logger.info(
-                "duplicate_event",
-                extra={
-                    "event_id": event_id,
-                    "event_type": event_type,
-                    "reason": "concurrent_insert_conflict",
-                },
+            if existing:
+                logger.info(
+                    "duplicate_event",
+                    extra={
+                        "event_id": event_id,
+                        "event_type": event_type,
+                        "reason": "concurrent_insert_conflict",
+                    },
+                )
+                return IngestionResult(
+                    event_id=event_id,
+                    event_type=event_type,
+                    is_duplicate=True,
+                    payment_event=existing,
+                )
+            # Re-raise if IntegrityError was not a duplicate key conflict
+            raise
+        except Exception as exc:
+            db.rollback()
+            logger.error(
+                "database_persistence_failure",
+                extra={"event_id": event_id, "error": str(exc)},
             )
-            return IngestionResult(
-                event_id=event_id,
-                event_type=event_type,
-                is_duplicate=True,
-                payment_event=existing or new_event,
-            )
+            raise
 
         # 4. Dispatch to downstream processing boundary
-        self.dispatch_event(new_event)
+        try:
+            self.dispatch_event(new_event)
+        except Exception as exc:
+            logger.error(
+                "dispatch_error",
+                extra={
+                    "event_id": event_id,
+                    "payment_event_id": str(new_event.id),
+                    "error": str(exc),
+                },
+            )
 
         return IngestionResult(
             event_id=event_id,

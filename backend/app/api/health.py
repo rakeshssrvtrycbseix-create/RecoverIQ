@@ -3,9 +3,9 @@ from fastapi import APIRouter
 router = APIRouter(tags=["health"])
 
 
-@router.api_route("/health", methods=["GET", "POST"])
+@router.get("/health")
 async def health_check() -> dict:
-    """Health check endpoint supporting both GET and POST requests."""
+    """Health check endpoint."""
     return {
         "status": "ok",
         "service": "recoveriq-api",

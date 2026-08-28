@@ -1,8 +1,8 @@
 # Razorpay Webhook Ingestion Implementation
 
-## 1. Overview
+## 1. Overview & Architecture
 
-This document details the implementation of the **Razorpay Webhook Ingestion Layer** in RecoverIQ (Phase 3B). The ingestion endpoint receives raw HTTP POST events from the Razorpay Payment Gateway, cryptographically authenticates them via HMAC-SHA256, deduplicates requests using database-backed uniqueness constraints, persists the raw event to `payment_events`, and dispatches the event to the asynchronous processing boundary.
+This document details the hardened implementation of the **Razorpay Webhook Ingestion Layer** in RecoverIQ (Phase 3B/3C). The ingestion endpoint receives raw HTTP POST events from the Razorpay Payment Gateway, cryptographically authenticates them via HMAC-SHA256, deduplicates requests using database-backed uniqueness constraints, deterministically sanitizes payload data to minimize PII, persists raw events to `payment_events`, and dispatches to the asynchronous processing boundary.
 
 ---
 
@@ -10,6 +10,7 @@ This document details the implementation of the **Razorpay Webhook Ingestion Lay
 
 - **Path**: `POST /webhooks/razorpay`
 - **Controller Module**: [`backend/app/webhooks/razorpay.py`](file:///d:/MEDIFLOW/RecoverIQ/backend/app/webhooks/razorpay.py)
+- **Sanitizer Module**: [`backend/app/webhooks/sanitizer.py`](file:///d:/MEDIFLOW/RecoverIQ/backend/app/webhooks/sanitizer.py)
 - **Service Abstraction**: [`backend/app/services/payment_event_service.py`](file:///d:/MEDIFLOW/RecoverIQ/backend/app/services/payment_event_service.py)
 - **Protocol**: HTTPS POST
 - **Payload Format**: `application/json`
@@ -24,65 +25,98 @@ This document details the implementation of the **Razorpay Webhook Ingestion Lay
 
 ---
 
-## 3. Cryptographic Signature Verification
+## 3. Data Safety, PII Minimization & Payload Retention Policy
 
-Signature verification is performed strictly over the **raw request bytes** prior to any JSON parsing or normalization:
+### 3.1 Payload Retention Policy
+- `payment_events.payload` stores an audit-compliant, sanitized representation of the Razorpay event JSON.
+- Raw HTTP request body bytes are used **only in memory** for signature verification and are never persisted in plain unmasked form.
+- The stored payload preserves all identifiers, error codes, and state metrics needed for ML and recovery orchestration while strictly stripping secrets and masking PII.
+
+### 3.2 PII Minimization & Sanitization Rules
+1. **Email Masking**: Customer emails are masked to `u***@domain.com` (e.g. `john.doe@example.com` &rarr; `j***e@example.com`).
+2. **Phone Number Masking**: Mobile numbers are masked, keeping country code and the last 4 digits (e.g. `+919876543210` &rarr; `+91******3210`).
+3. **Cardholder Name Masking**: Cardholder names in `payment.entity.card.name` are masked to initials (`Jane Doe` &rarr; `J***e`).
+4. **Secret Stripping & Redaction**: Any secret-like keys in metadata or notes (including `cvv`, `pin`, `password`, `secret`, `webhook_secret`, `key_secret`, `auth_token`, `access_token`, `otp`, `card_number`, `pan`) are replaced with `"[REDACTED]"`.
+5. **Preserved Telemetry**: Critical non-sensitive telemetry fields are completely preserved:
+   - `id`, `amount`, `currency`, `status`, `order_id`, `invoice_id`, `method`
+   - `error_code`, `error_source`, `error_step`, `error_reason`, `error_description`
+   - `card.network`, `card.type`, `card.issuer`, `card.last4`, `card.token_id`
+   - `subscription.id`, `subscription.plan_id`, `subscription.status`, `subscription.charge_at`
+
+---
+
+## 4. Processing Lifecycle: Raw Body vs Stored Payload
+
+A strict boundary is maintained between cryptographic authentication and data persistence:
 
 ```
-computed_signature = hmac.new(
-    key=secret.encode("utf-8"),
-    msg=raw_body_bytes,
-    digestmod=hashlib.sha256
-).hexdigest()
+RAW REQUEST BODY BYTES
+        ↓
+SIGNATURE VERIFICATION (HMAC-SHA256 on Raw Bytes)
+        ↓
+JSON PARSING (json.loads(raw_body))
+        ↓
+DETERMINISTIC SANITIZATION (sanitize_razorpay_payload)
+        ↓
+PERSIST TO DATABASE (payment_events.payload)
+        ↓
+ASYNC DISPATCH (payment_event_service.dispatch_event)
 ```
 
-- Constant-time verification is enforced using `hmac.compare_digest(computed, signature)`.
-- If the signature is missing &rarr; **HTTP 400 Bad Request**.
-- If the signature is invalid &rarr; **HTTP 401 Unauthorized**.
-- If the server webhook secret is unconfigured &rarr; **HTTP 500 Internal Server Error**.
+> **Security Mandate**: Signature verification **never** runs on sanitized or re-serialized JSON. Verification executes strictly on the immutable incoming byte stream.
 
 ---
 
-## 4. Idempotency & Database Interaction
+## 5. Idempotency & Concurrency Semantics
 
-RecoverIQ guarantees idempotency using the relational database as the single source of truth:
+RecoverIQ relies on the relational database as the single authoritative source of truth:
 
-1. **Unique Constraint**: The `payment_events.idempotency_key` column is unique (`uq_payment_events_idempotency_key`).
-2. **Optimistic Fast-Path Lookup**: The service checks if `idempotency_key == X-Razorpay-Event-Id` exists. If found, it logs `duplicate_event` and immediately returns **HTTP 200 OK** (`is_duplicate: true`).
-3. **Race Condition Handling**: If two identical webhook deliveries race concurrently and bypass the initial lookup, one transaction succeeds while the other encounters an `IntegrityError`. The transaction rolls back, fetches the existing record, logs the conflict, and returns **HTTP 200 OK**.
-4. **State Machine**: Fresh events are recorded with `processing_status = 'RECEIVED'`.
-
----
-
-## 5. Security & Observability
-
-- **No Secret Leaks**: Webhook secrets, API keys, and authorization headers are never logged or exposed in HTTP responses.
-- **PII Protection**: Customer phone numbers and emails are masked before long-term relational indexing.
-- **Structured Logs**:
-  - `webhook_received`: Emitted upon receiving payload with event ID and byte size.
-  - `signature_verified`: Emitted upon successful cryptographic validation.
-  - `event_persisted`: Emitted upon successful DB commit.
-  - `duplicate_event`: Emitted when an existing event ID is deduplicated.
-  - `processing_dispatch_requested`: Emitted when event is handed to the async boundary.
-  - `invalid_signature`: Emitted on signature mismatch.
+1. **Database Uniqueness**: `payment_events.idempotency_key` and `payment_events.razorpay_event_id` have `UNIQUE` constraints.
+2. **Concurrent Request Handling**:
+   ```
+   Request A ──┐
+               ├── Same Event ID ──► DB Unique Check ──► 1 DB Row, 1 Dispatch, 2x HTTP 200
+   Request B ──┘
+   ```
+   - Request A inserts the row and calls `dispatch_event()`.
+   - Request B catches `IntegrityError`, rolls back, retrieves the existing row, logs `duplicate_event`, and skips dispatch.
+   - Both requests return **HTTP 200 OK** (`{"status": "ok", "event_id": "...", "is_duplicate": bool}`).
 
 ---
 
-## 6. Mermaid Ingestion Sequence Flow
+## 6. Database Failure Behavior & Error Handling
+
+- **No False 200s**: If a database connection error, transaction crash, or write failure occurs during insertion, the transaction rolls back cleanly and raises an `HTTP 500 Internal Server Error`.
+- **Razorpay Retry Engagement**: Returning HTTP 500 ensures that Razorpay's 24-hour exponential retry policy will re-deliver the event once database connectivity is restored.
+- **Duplicate Safety**: Already successfully persisted duplicates continue returning **HTTP 200 OK**.
+
+---
+
+## 7. Future Worker & Queue Boundary
+
+In the current phase, `payment_event_service.dispatch_event()` acts as a minimal logging abstraction representing the future async worker queue boundary.
+
+- In Phase 4, `dispatch_event()` will enqueue the `payment_event_id` into a background worker queue (e.g. Redis/Celery/ARQ/background worker).
+- Events are persisted with `processing_status = 'RECEIVED'` before dispatch. If a background worker fails or crashes during dispatch, a periodic reconciliation cron will poll unhandled events in `RECEIVED` status and re-queue them.
+
+---
+
+## 8. Mermaid Sequence Flow
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant RZP as Razorpay Gateway
-    participant Router as Webhooks Router (/webhooks/razorpay)
+    participant Router as /webhooks/razorpay
     participant Sec as Signature Verifier (HMAC-SHA256)
+    participant San as Payload Sanitizer
     participant Svc as PaymentEventService
     participant DB as PostgreSQL (payment_events)
-    participant Dispatch as Async Dispatch Boundary
+    participant Dispatch as Async Worker Boundary
 
-    RZP->>Router: POST /webhooks/razorpay<br/>(Headers + Raw Body)
+    RZP->>Router: POST /webhooks/razorpay (Raw Bytes + Headers)
     
-    Router->>Router: Check required headers (X-Razorpay-Signature, X-Razorpay-Event-Id)
+    Router->>Router: Validate presence of X-Razorpay-Signature & Event-Id
     alt Missing Headers
         Router-->>RZP: 400 Bad Request
     end
@@ -93,77 +127,35 @@ sequenceDiagram
         Router-->>RZP: 401 Unauthorized
     else Valid Signature
         Sec-->>Router: True
-        Router->>Router: Parse JSON payload
-        Router->>Svc: ingest_event(db, event_id, event_type, payload)
+        Router->>Router: Parse JSON from raw_bytes
+        Router->>San: sanitize_razorpay_payload(json_dict)
+        San-->>Router: sanitized_payload (PII masked, secrets redacted)
         
+        Router->>Svc: ingest_event(db, event_id, event_type, sanitized_payload)
         Svc->>DB: INSERT INTO payment_events (idempotency_key, payload, status=RECEIVED)
-        alt Duplicate Event (Unique Violation or Existing)
-            DB-->>Svc: Duplicate Detected
+        
+        alt Duplicate Delivery (IntegrityError / Existing Record)
+            DB-->>Svc: Conflict Handled
             Svc-->>Router: IngestionResult(is_duplicate=True)
-            Router-->>RZP: 200 OK {"status": "ok", "event_id": "...", "is_duplicate": true}
+            Router-->>RZP: 200 OK {"status": "ok", "is_duplicate": true}
+        else Database Write Error
+            DB-->>Svc: Exception
+            Svc-->>Router: Raises 500 Error
+            Router-->>RZP: 500 Internal Server Error (Triggers Razorpay retry)
         else Fresh Event
-            DB-->>Svc: Success (Committed)
+            DB-->>Svc: Committed
             Svc->>Dispatch: dispatch_event(payment_event)
             Svc-->>Router: IngestionResult(is_duplicate=False)
-            Router-->>RZP: 200 OK {"status": "ok", "event_id": "...", "is_duplicate": false}
+            Router-->>RZP: 200 OK {"status": "ok", "is_duplicate": false}
         end
     end
 ```
 
 ---
 
-## 7. Local Development & Testing Instructions
+## 9. Local Development & Testing
 
-### Sending a Test Webhook Locally
-
-You can send a signed test webhook to your local RecoverIQ instance using Python:
-
-```python
-import hashlib
-import hmac
-import json
-import requests
-
-WEBHOOK_URL = "http://localhost:8000/webhooks/razorpay"
-WEBHOOK_SECRET = "your_local_webhook_secret"
-EVENT_ID = "evt_local_test_001"
-
-payload = {
-    "entity": "event",
-    "event": "payment.failed",
-    "payload": {
-        "payment": {
-            "entity": {
-                "id": "pay_test_001",
-                "amount": 499900,
-                "currency": "INR",
-                "status": "failed",
-                "error_code": "BAD_REQUEST_ERROR",
-                "error_reason": "insufficient_funds",
-            }
-        }
-    },
-}
-
-raw_bytes = json.dumps(payload).encode("utf-8")
-signature = hmac.new(
-    key=WEBHOOK_SECRET.encode("utf-8"),
-    msg=raw_bytes,
-    digestmod=hashlib.sha256,
-).hexdigest()
-
-headers = {
-    "X-Razorpay-Signature": signature,
-    "X-Razorpay-Event-Id": EVENT_ID,
-    "Content-Type": "application/json",
-}
-
-response = requests.post(WEBHOOK_URL, data=raw_bytes, headers=headers)
-print("Status Code:", response.status_code)
-print("Response JSON:", response.json())
-```
-
-### Running Automated Test Suite
+### Running Tests
 
 ```powershell
 cd backend

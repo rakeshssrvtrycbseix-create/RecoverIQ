@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.services.payment_event_service import payment_event_service
+from app.webhooks.sanitizer import sanitize_razorpay_payload
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +58,16 @@ async def handle_razorpay_webhook(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
     """
-    Receive, authenticate, deduplicate, and persist incoming Razorpay webhook events.
+    Receive, authenticate, sanitize, deduplicate, and persist Razorpay webhooks.
 
-    1. Validates presence of X-Razorpay-Signature and X-Razorpay-Event-Id headers.
-    2. Cryptographically validates signature over the raw unparsed request body.
-    3. Persists the event with database-level idempotency to prevent duplicate handling.
-    4. Returns HTTP 200 immediately for fast acknowledgment (< 5.0s requirement).
+    Lifecycle:
+    1. Validate required headers (X-Razorpay-Signature, X-Razorpay-Event-Id).
+    2. Extract exact raw request body bytes.
+    3. Verify HMAC-SHA256 signature against raw bytes (before any mutation/parsing).
+    4. Parse raw bytes as JSON.
+    5. Deterministically sanitize payload (mask PII, redact forbidden secrets).
+    6. Persist event to database with unique idempotency constraints.
+    7. Return HTTP 200 immediately (< 5.0s acknowledgment requirement).
     """
     # 1. Header Presence Validation
     if not x_razorpay_signature:
@@ -79,7 +84,7 @@ async def handle_razorpay_webhook(
             detail="Missing X-Razorpay-Event-Id header",
         )
 
-    # 2. Extract Raw Request Body Bytes (Prior to JSON Parsing)
+    # 2. Extract Raw Request Body Bytes
     raw_body = await request.body()
 
     logger.info(
@@ -90,7 +95,7 @@ async def handle_razorpay_webhook(
         },
     )
 
-    # 3. Cryptographic Signature Verification
+    # 3. Cryptographic Signature Verification on RAW Bytes
     webhook_secret = settings.razorpay_webhook_secret
     if not webhook_secret:
         logger.error("webhook_secret_not_configured")
@@ -121,8 +126,8 @@ async def handle_razorpay_webhook(
 
     # 4. JSON Payload Parsing
     try:
-        payload = json.loads(raw_body)
-        if not isinstance(payload, dict):
+        parsed_payload = json.loads(raw_body)
+        if not isinstance(parsed_payload, dict):
             raise ValueError("Payload must be a JSON object")
     except Exception as exc:
         logger.warning(
@@ -134,15 +139,28 @@ async def handle_razorpay_webhook(
             detail="Malformed JSON payload",
         ) from exc
 
-    event_type = payload.get("event", "unknown")
+    event_type = parsed_payload.get("event", "unknown")
 
-    # 5. Persist Event with Idempotency Guarantee
-    result = payment_event_service.ingest_event(
-        db=db,
-        event_id=x_razorpay_event_id,
-        event_type=event_type,
-        payload=payload,
-    )
+    # 5. Deterministic Payload Sanitization (Post-Signature Verification)
+    sanitized_payload = sanitize_razorpay_payload(parsed_payload)
+
+    # 6. Persist Event with Idempotency Guarantee
+    try:
+        result = payment_event_service.ingest_event(
+            db=db,
+            event_id=x_razorpay_event_id,
+            event_type=event_type,
+            payload=sanitized_payload,
+        )
+    except Exception as exc:
+        logger.error(
+            "webhook_ingestion_failure",
+            extra={"event_id": x_razorpay_event_id, "error": str(exc)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to persist webhook event",
+        ) from exc
 
     return {
         "status": "ok",
