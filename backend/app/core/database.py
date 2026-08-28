@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -8,11 +9,13 @@ from app.core.config import get_settings
 
 class Base(DeclarativeBase):
     """SQLAlchemy declarative base for all models."""
+
     pass
 
 
+@lru_cache(maxsize=1)
 def get_engine():
-    """Create SQLAlchemy engine from settings."""
+    """Create a cached SQLAlchemy engine from settings."""
     settings = get_settings()
     return create_engine(
         settings.database_url,
@@ -20,8 +23,9 @@ def get_engine():
     )
 
 
+@lru_cache(maxsize=1)
 def get_session_factory():
-    """Create a session factory bound to the engine."""
+    """Create a cached session factory bound to the engine."""
     engine = get_engine()
     return sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

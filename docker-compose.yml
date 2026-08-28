@@ -1,13 +1,11 @@
-version: "3.8"
-
 services:
   db:
     image: postgres:16-alpine
     container_name: recoveriq-db
     environment:
-      POSTGRES_DB: recoveriq
-      POSTGRES_USER: recoveriq
-      POSTGRES_PASSWORD: recoveriq_local
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:

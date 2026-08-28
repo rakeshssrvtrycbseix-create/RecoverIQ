@@ -4,6 +4,8 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import app.models  # noqa: F401 (ensure all models register with Base.metadata)
+from app.core.config import get_settings
 from app.core.database import Base
 
 config = context.config
@@ -13,10 +15,23 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Override sqlalchemy.url from environment if available
-db_url = os.environ.get("DATABASE_URL")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
+# Determine sqlalchemy.url:
+# 1. Respect explicit URL if set programmatically on config
+# 2. Otherwise use DATABASE_URL from environment
+# 3. Otherwise fallback to application settings
+current_url = config.get_main_option("sqlalchemy.url")
+env_url = os.environ.get("DATABASE_URL")
+
+if not current_url or current_url.startswith("postgresql://localhost"):
+    if env_url:
+        config.set_main_option("sqlalchemy.url", env_url)
+    else:
+        try:
+            settings = get_settings()
+            if settings.database_url:
+                config.set_main_option("sqlalchemy.url", settings.database_url)
+        except Exception:
+            pass
 
 
 def run_migrations_offline() -> None:
