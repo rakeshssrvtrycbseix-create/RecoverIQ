@@ -23,9 +23,10 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
 
-    # Razorpay (Test Mode — future)
+    # Razorpay (Test Mode)
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
 
     # LLM (future)
     llm_api_key: str = ""
