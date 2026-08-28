@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     AuditLog,
+    Customer,
     Payment,
     PaymentEvent,
     PaymentEventProcessingStatus,
@@ -102,6 +103,7 @@ def test_process_payment_failed_event_creates_recovery_case(
     assert event.processing_status == PaymentEventProcessingStatus.PROCESSED.value
     assert event.processed_at is not None
     assert event.payment_id is not None
+    assert event.processing_error is None
 
     # Verify RecoveryCase in DB
     case = (
@@ -242,17 +244,134 @@ def test_processor_transactional_rollback_on_failure(db_session: Session):
 
     with patch(
         "app.services.recovery_case_service.recovery_case_service.handle_payment_failure",
-        side_effect=RuntimeError("Simulated unexpected failure"),
+        side_effect=RuntimeError("Simulated database constraint failure"),
     ):
         try:
             payment_event_processor.process_payment_event(db_session, event)
         except RuntimeError:
             pass
 
-    # Verify event status marked FAILED
+    # Verify event status marked FAILED in DB and error recorded
+    stored_event = (
+        db_session.query(PaymentEvent)
+        .filter_by(id=event.id)
+        .first()
+    )
+    assert stored_event is not None
+    assert (
+        stored_event.processing_status
+        == PaymentEventProcessingStatus.FAILED.value
+    )
+    assert "Simulated database constraint failure" in (
+        stored_event.processing_error or ""
+    )
+
+
+def test_no_partial_business_state_committed_on_failure(db_session: Session):
+    """Test that partial payment or case records are not committed after failure."""
+    payload = {
+        "entity": "event",
+        "event": "payment.failed",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": "pay_partial_rollback_001",
+                    "amount": 50000,
+                    "currency": "INR",
+                    "order_id": "order_rollback_test_99",
+                }
+            }
+        },
+    }
+    event = PaymentEvent(
+        idempotency_key="evt_partial_rb_001",
+        razorpay_event_id="evt_partial_rb_001",
+        event_type="payment.failed",
+        source=PaymentEventSource.RAZORPAY_WEBHOOK.value,
+        payload=payload,
+        processing_status=PaymentEventProcessingStatus.RECEIVED.value,
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    def partial_failure_mock(db, payment_event, payment_data):
+        # Create partial entities in the session without committing
+        cust = Customer(external_customer_id="cust_temp_rb_01")
+        db.add(cust)
+        db.flush()
+        payment = Payment(
+            customer_id=cust.id,
+            razorpay_order_id="order_rollback_test_99",
+            amount=50000,
+            currency="INR",
+            status=PaymentStatus.FAILED.value,
+        )
+        db.add(payment)
+        db.flush()
+        # Fail before completing transaction
+        raise RuntimeError("Unexpected failure during case processing")
+
+    with patch(
+        "app.services.recovery_case_service.recovery_case_service.handle_payment_failure",
+        side_effect=partial_failure_mock,
+    ):
+        try:
+            payment_event_processor.process_payment_event(db_session, event)
+        except RuntimeError:
+            pass
+
+    # Ensure no partial Payment exists in DB (it was rolled back)
+    payment = (
+        db_session.query(Payment)
+        .filter_by(razorpay_order_id="order_rollback_test_99")
+        .first()
+    )
+    assert payment is None
+
+    # Ensure event is marked FAILED in DB
+    stored_event = (
+        db_session.query(PaymentEvent).filter_by(id=event.id).first()
+    )
+    assert (
+        stored_event.processing_status
+        == PaymentEventProcessingStatus.FAILED.value
+    )
+    assert "Unexpected failure during case processing" in (
+        stored_event.processing_error or ""
+    )
+
+
+def test_failed_event_can_safely_be_retried(db_session: Session):
+    """Test that a previously FAILED event can be reprocessed and succeeds."""
+    payload = sample_payment_failed_event_payload()
+    event = PaymentEvent(
+        idempotency_key="evt_retry_success_001",
+        razorpay_event_id="evt_retry_success_001",
+        event_type="payment.failed",
+        source=PaymentEventSource.RAZORPAY_WEBHOOK.value,
+        payload=payload,
+        processing_status=PaymentEventProcessingStatus.FAILED.value,
+        processing_error="Previous network timeout",
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    # Retry processing
+    result = payment_event_processor.process_payment_event(db_session, event)
+    assert (
+        result.processing_status
+        == PaymentEventProcessingStatus.PROCESSED.value
+    )
+    assert result.already_processed is False
+    assert result.recovery_case_id is not None
+
+    # Verify event state in DB
     db_session.refresh(event)
-    assert event.processing_status == PaymentEventProcessingStatus.FAILED.value
-    assert "Simulated unexpected failure" in (event.processing_error or "")
+    assert (
+        event.processing_status
+        == PaymentEventProcessingStatus.PROCESSED.value
+    )
+    assert event.processing_error is None  # Error cleared on successful retry
 
 
 def test_webhook_end_to_end_ingestion_triggers_recovery_case_creation(

@@ -33,6 +33,42 @@ class ProcessedEventResult:
 class PaymentEventProcessor:
     """Deterministic event consumer processing persisted PaymentEvent records."""
 
+    def _record_failure_status(
+        self,
+        db: Session,
+        payment_event_id: uuid.UUID,
+        error_message: str,
+    ) -> None:
+        """
+        Record processing failure status in an isolated transaction after rollback.
+
+        Guarantees that all uncommitted business state is discarded while
+        persisting processing_status=FAILED and processing_error to payment_events.
+        """
+        try:
+            db.rollback()
+            event = (
+                db.query(PaymentEvent)
+                .filter_by(id=payment_event_id)
+                .first()
+            )
+            if event:
+                event.processing_status = (
+                    PaymentEventProcessingStatus.FAILED.value
+                )
+                event.processing_error = error_message
+                db.commit()
+                db.refresh(event)
+        except Exception as err:
+            db.rollback()
+            logger.error(
+                "failed_to_record_event_failure_status",
+                extra={
+                    "payment_event_id": str(payment_event_id),
+                    "error": str(err),
+                },
+            )
+
     def process_payment_event(
         self,
         db: Session,
@@ -45,10 +81,13 @@ class PaymentEventProcessor:
         1. Processing is idempotent (re-running a PROCESSED event is a no-op).
         2. Routes payment.failed, payment.captured, subscription.halted.
         3. Safely ignores unhandled events without failing.
-        4. Maintains strict transactional atomicity.
+        4. Atomic transaction boundary for business state mutations.
+        5. On exception, rolls back business state and records FAILED status.
+        6. Allows retrying previously FAILED events.
         """
         event_id = payment_event.idempotency_key
         event_type = payment_event.event_type
+        payment_event_id = payment_event.id
 
         # 1. Idempotency Check: Don't re-process already processed events
         if (
@@ -138,10 +177,11 @@ class PaymentEventProcessor:
                 db.add(audit)
                 db.flush()
 
-            # 4. Update PaymentEvent status
+            # 4. Update PaymentEvent status to PROCESSED and clear prior errors
             payment_event.processing_status = (
                 PaymentEventProcessingStatus.PROCESSED.value
             )
+            payment_event.processing_error = None
             payment_event.processed_at = datetime.now(UTC)
             if recovery_case:
                 payment_event.payment_id = recovery_case.payment_id
@@ -168,21 +208,16 @@ class PaymentEventProcessor:
             )
 
         except Exception as exc:
-            db.rollback()
             logger.error(
                 "event_processing_failed",
                 extra={"event_id": event_id, "error": str(exc)},
             )
-            # Update event status to FAILED in isolated commit
-            try:
-                payment_event.processing_status = (
-                    PaymentEventProcessingStatus.FAILED.value
-                )
-                payment_event.processing_error = str(exc)
-                db.commit()
-            except Exception:
-                db.rollback()
-
+            # Record failure in isolated transaction after full rollback
+            self._record_failure_status(
+                db=db,
+                payment_event_id=payment_event_id,
+                error_message=str(exc),
+            )
             raise
 
 
