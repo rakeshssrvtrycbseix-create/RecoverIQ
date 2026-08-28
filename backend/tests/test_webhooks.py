@@ -203,7 +203,7 @@ def test_valid_event_persisted_in_database(
     assert stored_event.razorpay_event_id == event_id
     assert (
         stored_event.processing_status
-        == PaymentEventProcessingStatus.RECEIVED.value
+        == PaymentEventProcessingStatus.PROCESSED.value
     )
     assert stored_event.payload["event"] == "subscription.halted"
 

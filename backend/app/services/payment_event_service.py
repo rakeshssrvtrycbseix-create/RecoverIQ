@@ -30,6 +30,7 @@ class PaymentEventService:
         event_type: str,
         payload: dict[str, Any],
         source: str = PaymentEventSource.RAZORPAY_WEBHOOK.value,
+        auto_process: bool = True,
     ) -> IngestionResult:
         """
         Persist an inbound payment event with database-backed idempotency.
@@ -103,7 +104,6 @@ class PaymentEventService:
                     is_duplicate=True,
                     payment_event=existing,
                 )
-            # Re-raise if IntegrityError was not a duplicate key conflict
             raise
         except Exception as exc:
             db.rollback()
@@ -115,7 +115,10 @@ class PaymentEventService:
 
         # 4. Dispatch to downstream processing boundary
         try:
-            self.dispatch_event(new_event)
+            self.dispatch_event(
+                payment_event=new_event,
+                db=db if auto_process else None,
+            )
         except Exception as exc:
             logger.error(
                 "dispatch_error",
@@ -133,11 +136,16 @@ class PaymentEventService:
             payment_event=new_event,
         )
 
-    def dispatch_event(self, payment_event: PaymentEvent) -> None:
+    def dispatch_event(
+        self,
+        payment_event: PaymentEvent,
+        db: Session | None = None,
+    ) -> None:
         """
-        Minimal dispatch abstraction exposing the future async worker boundary.
+        Dispatch abstraction exposing the future async worker boundary.
 
-        Logs dispatch request without executing heavy synchronous business logic.
+        Logs dispatch request. In local/synchronous mode, triggers the
+        deterministic payment event processor.
         """
         logger.info(
             "processing_dispatch_requested",
@@ -147,6 +155,15 @@ class PaymentEventService:
                 "payment_event_id": str(payment_event.id),
             },
         )
+        if db is not None:
+            from app.services.payment_event_processor import (
+                payment_event_processor,
+            )
+
+            payment_event_processor.process_payment_event(
+                db=db,
+                payment_event=payment_event,
+            )
 
 
 payment_event_service = PaymentEventService()
