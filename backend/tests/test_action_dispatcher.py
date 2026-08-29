@@ -26,6 +26,7 @@ from app.models import (
     RecoveryCaseStatus,
     RecoveryStage,
 )
+from app.providers.base import ProviderResult
 from app.providers.mock import MockActionProvider
 from app.services.action_dispatcher import (
     ActionExecutionPersistenceError,
@@ -380,6 +381,90 @@ def test_provider_exception_is_handled(db_session: Session):
 
     db_session.refresh(action)
     assert action.status == RecoveryActionStatus.FAILED.value
+
+
+def test_gateway_timeout_keeps_action_executing(db_session: Session):
+    """Test gateway timeout keeps RecoveryAction in EXECUTING state for reconciliation."""
+    _, _, _, _, action = create_dispatcher_fixtures(db_session)
+
+    class TimeoutProvider:
+        def execute(self, action, context=None):
+            return ProviderResult(
+                success=False,
+                execution_status="TIMED_OUT",
+                provider_reference_id=f"rec_{action.id}",
+                provider_status_code="408",
+                failure_reason="GATEWAY_TIMEOUT",
+                error_details="Connection to gateway timed out",
+                response_payload_summary={"timeout": True},
+                executed_at=datetime.now(UTC),
+            )
+
+    result = action_dispatcher.dispatch_action(
+        db=db_session,
+        recovery_action_id=action.id,
+        provider=TimeoutProvider(),  # type: ignore
+    )
+
+    # 1. Assert result execution_status is TIMED_OUT
+    assert result is not None
+    assert result.execution_status == "TIMED_OUT"
+    assert result.failure_reason == "GATEWAY_TIMEOUT"
+    assert result.provider_status_code == "408"
+
+    # 2. Assert RecoveryAction remains EXECUTING (not FAILED)
+    db_session.refresh(action)
+    assert action.status == RecoveryActionStatus.EXECUTING.value
+    assert action.dispatched_at is not None
+    assert action.completed_at is None
+
+
+def test_gateway_timeout_creates_timeout_action_result_and_audit_log(db_session: Session):
+    """Test gateway timeout persists ActionResult(TIMED_OUT) and AuditLog(ACTION_EXECUTION_TIMED_OUT)."""
+    _, _, case, _, action = create_dispatcher_fixtures(db_session)
+
+    class TimeoutProvider:
+        def execute(self, action, context=None):
+            return ProviderResult(
+                success=False,
+                execution_status="TIMED_OUT",
+                provider_reference_id=f"rec_{action.id}",
+                provider_status_code="408",
+                failure_reason="GATEWAY_TIMEOUT",
+                error_details="Connection to gateway timed out",
+                response_payload_summary={"timeout": True},
+                executed_at=datetime.now(UTC),
+            )
+
+    result = action_dispatcher.dispatch_action(
+        db=db_session,
+        recovery_action_id=action.id,
+        provider=TimeoutProvider(),  # type: ignore
+    )
+
+    # 1. Assert ActionResult row in database
+    db_result = (
+        db_session.query(ActionResult)
+        .filter_by(recovery_action_id=action.id)
+        .first()
+    )
+    assert db_result is not None
+    assert db_result.execution_status == "TIMED_OUT"
+    assert db_result.failure_reason == "GATEWAY_TIMEOUT"
+
+    # 2. Assert AuditLog row in database
+    audit = (
+        db_session.query(AuditLog)
+        .filter_by(
+            recovery_case_id=case.id,
+            entity_id=action.id,
+            event_type="ACTION_EXECUTION_TIMED_OUT",
+        )
+        .first()
+    )
+    assert audit is not None
+    assert audit.action == "ACTION_EXECUTION_TIMED_OUT"
+    assert audit.actor_id == "action_dispatcher"
 
 
 # =========================================================================

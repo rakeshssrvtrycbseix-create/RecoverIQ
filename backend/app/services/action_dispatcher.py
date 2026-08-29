@@ -287,7 +287,40 @@ class ActionDispatcher:
 
         # 10. Step C: State Finalization & Persistence
         try:
-            if provider_result.success:
+            if (
+                provider_result.execution_status == "TIMED_OUT"
+                or provider_result.failure_reason == "GATEWAY_TIMEOUT"
+            ):
+                # Gateway timeout: Keep action in EXECUTING for background reconciliation
+                action_result = ActionResult(
+                    recovery_action_id=action.id,
+                    execution_status="TIMED_OUT",
+                    provider_reference_id=provider_result.provider_reference_id,
+                    provider_status_code=provider_result.provider_status_code or "408",
+                    failure_reason="GATEWAY_TIMEOUT",
+                    error_details=provider_result.error_details,
+                    response_payload_summary=provider_result.response_payload_summary,
+                    executed_at=provider_result.executed_at,
+                )
+                audit = AuditLog(
+                    event_type="ACTION_EXECUTION_TIMED_OUT",
+                    actor_type=AuditActorType.ACTION_EXECUTOR.value,
+                    actor_id="action_dispatcher",
+                    recovery_case_id=case.id,
+                    entity_type="recovery_actions",
+                    entity_id=action.id,
+                    action="ACTION_EXECUTION_TIMED_OUT",
+                    previous_state={"status": RecoveryActionStatus.EXECUTING.value},
+                    new_state={
+                        "status": RecoveryActionStatus.EXECUTING.value,
+                        "execution_status": "TIMED_OUT",
+                        "failure_reason": "GATEWAY_TIMEOUT",
+                    },
+                    metadata_json={
+                        "action_type": action.action_type,
+                    },
+                )
+            elif provider_result.success:
                 action.status = RecoveryActionStatus.COMPLETED.value
                 action.completed_at = provider_result.executed_at
                 action_result = ActionResult(

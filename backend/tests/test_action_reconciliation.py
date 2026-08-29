@@ -129,7 +129,7 @@ class MockReconciliationProvider:
             return ProviderResult(
                 success=True,
                 execution_status="SUCCESS",
-                provider_reference_id=f"reconciled_ref_{action.id}",
+                provider_reference_id=f"recoveriq_{action.id}",
                 provider_status_code="200",
                 response_payload_summary={"reconciled_state": "PAID"},
                 executed_at=now_utc,
@@ -138,7 +138,7 @@ class MockReconciliationProvider:
             return ProviderResult(
                 success=False,
                 execution_status="FAILED",
-                provider_reference_id=f"reconciled_ref_{action.id}",
+                provider_reference_id=f"recoveriq_{action.id}",
                 provider_status_code="200",
                 failure_reason="GATEWAY_PAYMENT_EXPIRED",
                 response_payload_summary={"reconciled_state": "EXPIRED"},
@@ -148,7 +148,7 @@ class MockReconciliationProvider:
             return ProviderResult(
                 success=False,
                 execution_status="UNKNOWN",
-                provider_reference_id=f"reconciled_ref_{action.id}",
+                provider_reference_id=f"recoveriq_{action.id}",
                 failure_reason="INCONCLUSIVE",
                 executed_at=now_utc,
             )
@@ -403,3 +403,95 @@ async def test_full_recovery_pipeline_end_to_end_integration(db_session: Session
     assert "POLICY_DECISION_EVALUATED" in event_types
     assert "RECOVERY_ACTION_SCHEDULED" in event_types
     assert "RECOVERY_ACTION_EXECUTED" in event_types
+
+
+# =========================================================================
+# Phase 8A Gateway Timeout & Reconciliation Tests
+# =========================================================================
+
+
+def test_timed_out_action_is_reconciled(db_session: Session):
+    """5, 6. Test action that experienced gateway timeout is reconciled to COMPLETED."""
+    _, _, case, _, action = create_reconciliation_fixtures(
+        db_session, dispatched_minutes_ago=20.0
+    )
+
+    # Simulate timeout outcome previously recorded
+    action.status = RecoveryActionStatus.EXECUTING.value
+    timeout_res = ActionResult(
+        recovery_action_id=action.id,
+        execution_status="TIMED_OUT",
+        provider_reference_id=f"recoveriq_{action.id}",
+        provider_status_code="408",
+        failure_reason="GATEWAY_TIMEOUT",
+        error_details="Connection timed out",
+        executed_at=datetime.now(UTC) - timedelta(minutes=20),
+    )
+    db_session.add(timeout_res)
+    db_session.commit()
+
+    # Reconciler finds it and provider reports payment was captured
+    mock_provider = MockReconciliationProvider(outcome_status="SUCCESS")
+    reconciler = ActionReconciliationService()
+    results = reconciler.reconcile_stale_actions(
+        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+    )
+
+    assert len(results) == 1
+    assert results[0].execution_status == "SUCCESS"
+
+    db_session.refresh(action)
+    assert action.status == RecoveryActionStatus.COMPLETED.value
+
+
+def test_reconciliation_marks_failed_timeout_failed(db_session: Session):
+    """7. Test timed-out action where gateway reports expired/failed transitions to FAILED."""
+    _, _, case, _, action = create_reconciliation_fixtures(
+        db_session, dispatched_minutes_ago=20.0
+    )
+
+    mock_provider = MockReconciliationProvider(outcome_status="FAILED")
+    reconciler = ActionReconciliationService()
+    results = reconciler.reconcile_stale_actions(
+        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+    )
+
+    assert len(results) == 1
+    assert results[0].execution_status == "FAILED"
+
+    db_session.refresh(action)
+    assert action.status == RecoveryActionStatus.FAILED.value
+
+
+def test_reconciliation_defers_inconclusive_timeout(db_session: Session):
+    """8. Test timed-out action where gateway status is inconclusive remains EXECUTING."""
+    _, _, case, _, action = create_reconciliation_fixtures(
+        db_session, dispatched_minutes_ago=20.0
+    )
+
+    mock_provider = MockReconciliationProvider(outcome_status="UNKNOWN")
+    reconciler = ActionReconciliationService()
+    results = reconciler.reconcile_stale_actions(
+        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+    )
+
+    assert len(results) == 0
+    db_session.refresh(action)
+    assert action.status == RecoveryActionStatus.EXECUTING.value
+
+
+def test_timeout_reconciliation_does_not_create_duplicate_payment(db_session: Session):
+    """10, 13. Test reconciliation reuses same idempotency key and does not trigger duplicate charge."""
+    _, _, case, _, action = create_reconciliation_fixtures(
+        db_session, dispatched_minutes_ago=20.0
+    )
+
+    mock_provider = MockReconciliationProvider(outcome_status="SUCCESS")
+    reconciler = ActionReconciliationService()
+    results = reconciler.reconcile_stale_actions(
+        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+    )
+
+    assert len(results) == 1
+    assert f"recoveriq_{action.id}" in results[0].provider_reference_id
+

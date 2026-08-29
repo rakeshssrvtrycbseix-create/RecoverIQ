@@ -248,7 +248,7 @@ class RazorpayActionProvider:
             logger.error("razorpay_request_timeout", extra={"idempotency_key": idempotency_key})
             return ProviderResult(
                 success=False,
-                execution_status="FAILED",
+                execution_status="TIMED_OUT",
                 provider_reference_id=idempotency_key,
                 provider_status_code="408",
                 failure_reason="GATEWAY_TIMEOUT",

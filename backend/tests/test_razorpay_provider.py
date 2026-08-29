@@ -208,7 +208,7 @@ def test_gateway_timeout_handling():
 
     result = provider.execute(action)
     assert result.success is False
-    assert result.execution_status == "FAILED"
+    assert result.execution_status == "TIMED_OUT"
     assert result.failure_reason == "GATEWAY_TIMEOUT"
     assert result.provider_status_code == "408"
 
