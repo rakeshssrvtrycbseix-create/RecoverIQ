@@ -56,6 +56,9 @@ FORBIDDEN_KEY_SUBSTRINGS = {
 # Regex patterns for accidental PII or credential leaks in values
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 CARD_PATTERN = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
+UUID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 SECRET_TOKEN_PATTERN = re.compile(
     r"(?:sk_live_|sk_test_|rzp_live_|rzp_test_|Bearer\s+|eyJh)[A-Za-z0-9_\-\.]{8,}"
 )
@@ -90,12 +93,13 @@ def validate_zero_pii_and_secrets(data: Any, path: str = "root") -> None:
             raise ValueError(
                 f"Zero-PII violation: Email-like value detected at {path}"
             )
-        # Avoid false positives on standard UUIDs/timestamps by checking digits count
-        digits_only = re.sub(r"\D", "", data)
-        if len(digits_only) >= 13 and CARD_PATTERN.search(data):
-            raise ValueError(
-                f"Zero-PII violation: Card-like number detected at {path}"
-            )
+        # Avoid false positives on standard UUIDs/timestamps by checking UUID pattern first
+        if not UUID_PATTERN.match(data):
+            digits_only = re.sub(r"\D", "", data)
+            if len(digits_only) >= 13 and CARD_PATTERN.search(data):
+                raise ValueError(
+                    f"Zero-PII violation: Card-like number detected at {path}"
+                )
         if SECRET_TOKEN_PATTERN.search(data):
             raise ValueError(
                 f"Zero-PII violation: Secret/token prefix detected at {path}"

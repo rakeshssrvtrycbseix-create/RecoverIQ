@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     allow_live_financial_actions: bool = False
     action_reconciliation_timeout_minutes: int = 15
 
+    # Background Worker Settings
+    action_poll_interval_seconds: float = 10.0
+    reconciliation_interval_seconds: float = 300.0
+    worker_batch_size: int = 50
+
     # LLM (future)
     llm_api_key: str = ""
 

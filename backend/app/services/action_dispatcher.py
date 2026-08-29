@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -53,6 +54,9 @@ FORBIDDEN_SENSITIVE_KEYS = {
 
 EMAIL_REGEX = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 CARD_REGEX = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
+UUID_REGEX = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 SECRET_TOKEN_REGEX = re.compile(
     r"(?:sk_live_|sk_test_|rzp_live_|rzp_test_|Bearer\s+|eyJh)[A-Za-z0-9_\-\.]{8,}"
 )
@@ -121,11 +125,12 @@ def _validate_payload_safety(data: Any, path: str = "payload") -> None:
             raise UnsafeActionPayloadError(
                 f"Unsafe payload: Email address detected at {path}"
             )
-        digits = re.sub(r"\D", "", data)
-        if len(digits) >= 13 and CARD_REGEX.search(data):
-            raise UnsafeActionPayloadError(
-                f"Unsafe payload: Card-like number detected at {path}"
-            )
+        if not UUID_REGEX.match(data):
+            digits = re.sub(r"\D", "", data)
+            if len(digits) >= 13 and CARD_REGEX.search(data):
+                raise UnsafeActionPayloadError(
+                    f"Unsafe payload: Card-like number detected at {path}"
+                )
         if SECRET_TOKEN_REGEX.search(data):
             raise UnsafeActionPayloadError(
                 f"Unsafe payload: Secret token prefix detected at {path}"
@@ -138,7 +143,8 @@ class ActionDispatcher:
     state transitions, idempotency guards, and execution telemetry persistence.
 
     Guarantees:
-    - Never executes unless status is SCHEDULED and scheduled_for <= current UTC time.
+    - Never executes unless status is SCHEDULED (or EXECUTING if already atomically claimed)
+      and scheduled_for <= current UTC time.
     - Zero execution for BLOCKED / HUMAN_REVIEW policy outcomes or terminal cases.
     - Idempotent: Repeated execution returns existing ActionResult with 0 duplicate calls.
     - Concurrency protection: Transitions SCHEDULED -> EXECUTING atomically before dispatch.
@@ -151,11 +157,15 @@ class ActionDispatcher:
         recovery_action_id: uuid.UUID,
         provider: ActionProvider | None = None,
         as_of: datetime | None = None,
+        already_claimed: bool = False,
     ) -> ActionResult | None:
         """Dispatch a single scheduled recovery action deterministically."""
         logger.info(
             "action_dispatch_initiated",
-            extra={"recovery_action_id": str(recovery_action_id)},
+            extra={
+                "recovery_action_id": str(recovery_action_id),
+                "already_claimed": already_claimed,
+            },
         )
 
         # 1. Load RecoveryAction
@@ -185,15 +195,20 @@ class ActionDispatcher:
                 .first()
             )
 
-        if action.status == RecoveryActionStatus.EXECUTING.value:
+        if not already_claimed and action.status == RecoveryActionStatus.EXECUTING.value:
             raise ConcurrentExecutionError(
                 f"RecoveryAction '{action.id}' is currently EXECUTING."
             )
 
-        if action.status != RecoveryActionStatus.SCHEDULED.value:
+        expected_status = (
+            RecoveryActionStatus.EXECUTING.value
+            if already_claimed
+            else RecoveryActionStatus.SCHEDULED.value
+        )
+        if action.status != expected_status:
             raise InvalidActionStateError(
                 f"RecoveryAction '{action.id}' has unexpected status '{action.status}' "
-                f"(expected '{RecoveryActionStatus.SCHEDULED.value}')."
+                f"(expected '{expected_status}')."
             )
 
         # 3. Due Time Validation
@@ -253,17 +268,34 @@ class ActionDispatcher:
         if action.action_payload:
             _validate_payload_safety(action.action_payload)
 
-        # 8. Step A: Atomic Transition -> EXECUTING
-        try:
-            action.status = RecoveryActionStatus.EXECUTING.value
-            action.dispatched_at = now_utc
-            db.commit()
-            db.refresh(action)
-        except Exception as exc:
-            db.rollback()
-            raise ActionExecutionPersistenceError(
-                f"Failed to transition action to EXECUTING: {exc}"
-            ) from exc
+        # 8. Step A: Atomic Transition -> EXECUTING (if not already claimed)
+        if not already_claimed:
+            try:
+                stmt = (
+                    update(RecoveryAction)
+                    .where(
+                        RecoveryAction.id == action.id,
+                        RecoveryAction.status == RecoveryActionStatus.SCHEDULED.value,
+                    )
+                    .values(
+                        status=RecoveryActionStatus.EXECUTING.value,
+                        dispatched_at=now_utc,
+                    )
+                )
+                claim_res = db.execute(stmt)
+                db.commit()
+                if claim_res.rowcount == 0:
+                    raise ConcurrentExecutionError(
+                        f"RecoveryAction '{action.id}' was claimed by another worker."
+                    )
+                db.refresh(action)
+            except ConcurrentExecutionError:
+                raise
+            except Exception as exc:
+                db.rollback()
+                raise ActionExecutionPersistenceError(
+                    f"Failed to transition action to EXECUTING: {exc}"
+                ) from exc
 
         # 9. Step B: Invoke Action Provider (External Boundary)
         active_provider = provider or ProviderFactory.get_provider()
