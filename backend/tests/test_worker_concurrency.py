@@ -24,6 +24,11 @@ from app.models import (
     RecoveryStage,
 )
 from app.providers.base import ProviderResult
+from app.services.action_dispatcher import (
+    ConcurrentExecutionError,
+    action_dispatcher,
+)
+from app.workers.reconciliation_worker import ReconciliationWorker
 from app.workers.recovery_worker import RecoveryWorker
 
 
@@ -216,3 +221,91 @@ def test_concurrent_claim_collision_handled_safely(db_session: Session):
     db_session.refresh(a2)
     assert a1.status == RecoveryActionStatus.COMPLETED.value
     assert a2.status == RecoveryActionStatus.COMPLETED.value
+
+
+def test_direct_dispatcher_and_worker_concurrency(db_session: Session):
+    """Audit: Direct ActionDispatcher and RecoveryWorker racing on same action."""
+    action = create_concurrency_test_action(db_session)
+
+    mock_provider = MagicMock()
+    mock_provider.execute.return_value = ProviderResult(
+        success=True,
+        execution_status="SUCCESS",
+        provider_reference_id=f"rec_{action.id}",
+        executed_at=datetime.now(UTC),
+    )
+
+    worker = RecoveryWorker()
+
+    # 1. Worker claims action first
+    claimed = worker.claim_action(db=db_session, action_id=action.id)
+    assert claimed is True
+
+    # 2. Direct dispatch attempting to dispatch the same action fails with ConcurrentExecutionError
+    with pytest.raises(ConcurrentExecutionError, match="currently EXECUTING"):
+        action_dispatcher.dispatch_action(
+            db=db_session,
+            recovery_action_id=action.id,
+            provider=mock_provider,
+            already_claimed=False,
+        )
+
+    # 3. Worker continues and dispatches successfully
+    result = action_dispatcher.dispatch_action(
+        db=db_session,
+        recovery_action_id=action.id,
+        provider=mock_provider,
+        already_claimed=True,
+    )
+    assert result is not None
+    assert result.execution_status == "SUCCESS"
+    assert mock_provider.execute.call_count == 1
+
+
+def test_worker_restart_ignores_previously_executing_action(db_session: Session):
+    """Audit: Worker restart ignores action left in EXECUTING by a crashed process."""
+    action = create_concurrency_test_action(
+        db_session, status=RecoveryActionStatus.EXECUTING.value
+    )
+
+    # New worker instance after restart
+    new_worker = RecoveryWorker()
+    due_ids = new_worker.fetch_due_action_ids(db=db_session)
+    assert action.id not in due_ids
+
+    # Claim fails
+    assert new_worker.claim_action(db=db_session, action_id=action.id) is False
+
+
+def test_provider_success_crash_before_finalization_reconciled(db_session: Session):
+    """Audit: Crash before finalization is resolved cleanly by reconciliation."""
+    action = create_concurrency_test_action(
+        db_session, status=RecoveryActionStatus.EXECUTING.value
+    )
+    # Simulate action dispatched 20 minutes ago
+    action.dispatched_at = datetime.now(UTC) - timedelta(minutes=20)
+    db_session.commit()
+
+    class MockReconProvider:
+        def reconcile_action(self, act):
+            return ProviderResult(
+                success=True,
+                execution_status="SUCCESS",
+                provider_reference_id=f"recoveriq_{act.id}",
+                provider_status_code="200",
+                executed_at=datetime.now(UTC),
+            )
+
+    recon_worker = ReconciliationWorker()
+    results = recon_worker.run_reconciliation(
+        db=db_session,
+        threshold_minutes=15,
+        provider=MockReconProvider(),  # type: ignore
+    )
+
+    assert len(results) == 1
+    assert results[0].execution_status == "SUCCESS"
+
+    db_session.refresh(action)
+    assert action.status == RecoveryActionStatus.COMPLETED.value
+
