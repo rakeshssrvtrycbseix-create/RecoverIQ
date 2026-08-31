@@ -90,9 +90,7 @@ def validate_zero_pii_and_secrets(data: Any, path: str = "root") -> None:
     elif isinstance(data, str):
         # Value content inspections
         if EMAIL_PATTERN.search(data):
-            raise ValueError(
-                f"Zero-PII violation: Email-like value detected at {path}"
-            )
+            raise ValueError(f"Zero-PII violation: Email-like value detected at {path}")
         # Avoid false positives on standard UUIDs/timestamps by checking UUID pattern first
         if not UUID_PATTERN.match(data):
             digits_only = re.sub(r"\D", "", data)
@@ -137,9 +135,7 @@ def build_agent_context(
 
     # 2. RecoveryCase Context
     currency_val = (
-        recovery_case.payment.currency
-        if recovery_case.payment
-        else payment.currency
+        recovery_case.payment.currency if recovery_case.payment else payment.currency
     )
     case_ctx = RecoveryCaseContext(
         case_id=str(recovery_case.id),

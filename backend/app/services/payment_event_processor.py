@@ -47,15 +47,9 @@ class PaymentEventProcessor:
         """
         try:
             db.rollback()
-            event = (
-                db.query(PaymentEvent)
-                .filter_by(id=payment_event_id)
-                .first()
-            )
+            event = db.query(PaymentEvent).filter_by(id=payment_event_id).first()
             if event:
-                event.processing_status = (
-                    PaymentEventProcessingStatus.FAILED.value
-                )
+                event.processing_status = PaymentEventProcessingStatus.FAILED.value
                 event.processing_error = error_message
                 db.commit()
                 db.refresh(event)
@@ -125,35 +119,27 @@ class PaymentEventProcessor:
 
         subscription_data = {}
         if isinstance(payload_container.get("subscription"), dict):
-            subscription_data = (
-                payload_container["subscription"].get("entity") or {}
-            )
+            subscription_data = payload_container["subscription"].get("entity") or {}
 
         # 3. Route to deterministic handler
         recovery_case: RecoveryCase | None = None
         try:
             if event_type == "payment.failed":
                 if payment_data:
-                    recovery_case = (
-                        recovery_case_service.handle_payment_failure(
-                            db, payment_event, payment_data
-                        )
+                    recovery_case = recovery_case_service.handle_payment_failure(
+                        db, payment_event, payment_data
                     )
             elif event_type == "payment.captured":
                 if payment_data:
-                    recovery_case = (
-                        recovery_case_service.handle_payment_captured(
-                            db, payment_event, payment_data
-                        )
+                    recovery_case = recovery_case_service.handle_payment_captured(
+                        db, payment_event, payment_data
                     )
             elif event_type == "subscription.halted":
-                recovery_case = (
-                    recovery_case_service.handle_subscription_halted(
-                        db,
-                        payment_event,
-                        subscription_data,
-                        payment_data or None,
-                    )
+                recovery_case = recovery_case_service.handle_subscription_halted(
+                    db,
+                    payment_event,
+                    subscription_data,
+                    payment_data or None,
                 )
             else:
                 # Ignore non-recovery events (e.g. payment.authorized)

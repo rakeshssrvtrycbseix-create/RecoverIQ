@@ -61,12 +61,8 @@ class ReconciliationWorker:
                 as_of=now_utc,
             )
 
-            completed = sum(
-                1 for r in results if r.execution_status == "SUCCESS"
-            )
-            failed = sum(
-                1 for r in results if r.execution_status == "FAILED"
-            )
+            completed = sum(1 for r in results if r.execution_status == "SUCCESS")
+            failed = sum(1 for r in results if r.execution_status == "FAILED")
             deferred = len(results) - (completed + failed)
 
             worker_telemetry.record_reconciliation(

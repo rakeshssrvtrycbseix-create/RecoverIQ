@@ -91,10 +91,7 @@ def test_process_payment_failed_event_creates_recovery_case(
     db_session.commit()
 
     result = payment_event_processor.process_payment_event(db_session, event)
-    assert (
-        result.processing_status
-        == PaymentEventProcessingStatus.PROCESSED.value
-    )
+    assert result.processing_status == PaymentEventProcessingStatus.PROCESSED.value
     assert result.already_processed is False
     assert result.recovery_case_id is not None
 
@@ -106,11 +103,7 @@ def test_process_payment_failed_event_creates_recovery_case(
     assert event.processing_error is None
 
     # Verify RecoveryCase in DB
-    case = (
-        db_session.query(RecoveryCase)
-        .filter_by(id=result.recovery_case_id)
-        .first()
-    )
+    case = db_session.query(RecoveryCase).filter_by(id=result.recovery_case_id).first()
     assert case is not None
     assert case.status == RecoveryCaseStatus.OPEN.value
     assert case.amount_at_risk == 299900
@@ -132,9 +125,7 @@ def test_process_payment_captured_event_resolves_recovery_case(
     )
     db_session.add(fail_event)
     db_session.commit()
-    fail_res = payment_event_processor.process_payment_event(
-        db_session, fail_event
-    )
+    fail_res = payment_event_processor.process_payment_event(db_session, fail_event)
 
     # 2. Process capture
     cap_payload = sample_payment_captured_event_payload()
@@ -148,19 +139,12 @@ def test_process_payment_captured_event_resolves_recovery_case(
     )
     db_session.add(cap_event)
     db_session.commit()
-    cap_res = payment_event_processor.process_payment_event(
-        db_session, cap_event
-    )
-    assert (
-        cap_res.processing_status
-        == PaymentEventProcessingStatus.PROCESSED.value
-    )
+    cap_res = payment_event_processor.process_payment_event(db_session, cap_event)
+    assert cap_res.processing_status == PaymentEventProcessingStatus.PROCESSED.value
 
     # Verify case resolved
     case = (
-        db_session.query(RecoveryCase)
-        .filter_by(id=fail_res.recovery_case_id)
-        .first()
+        db_session.query(RecoveryCase).filter_by(id=fail_res.recovery_case_id).first()
     )
     assert case.status == RecoveryCaseStatus.RECOVERED.value
     assert case.recovered_amount == 299900
@@ -189,10 +173,7 @@ def test_reprocessing_already_processed_event_is_idempotent_no_op(
     # Second run (re-processing)
     res_2 = payment_event_processor.process_payment_event(db_session, event)
     assert res_2.already_processed is True
-    assert (
-        res_2.processing_status
-        == PaymentEventProcessingStatus.PROCESSED.value
-    )
+    assert res_2.processing_status == PaymentEventProcessingStatus.PROCESSED.value
 
 
 def test_process_unknown_non_recovery_event_safely_ignored(
@@ -252,16 +233,9 @@ def test_processor_transactional_rollback_on_failure(db_session: Session):
             pass
 
     # Verify event status marked FAILED in DB and error recorded
-    stored_event = (
-        db_session.query(PaymentEvent)
-        .filter_by(id=event.id)
-        .first()
-    )
+    stored_event = db_session.query(PaymentEvent).filter_by(id=event.id).first()
     assert stored_event is not None
-    assert (
-        stored_event.processing_status
-        == PaymentEventProcessingStatus.FAILED.value
-    )
+    assert stored_event.processing_status == PaymentEventProcessingStatus.FAILED.value
     assert "Simulated database constraint failure" in (
         stored_event.processing_error or ""
     )
@@ -329,13 +303,8 @@ def test_no_partial_business_state_committed_on_failure(db_session: Session):
     assert payment is None
 
     # Ensure event is marked FAILED in DB
-    stored_event = (
-        db_session.query(PaymentEvent).filter_by(id=event.id).first()
-    )
-    assert (
-        stored_event.processing_status
-        == PaymentEventProcessingStatus.FAILED.value
-    )
+    stored_event = db_session.query(PaymentEvent).filter_by(id=event.id).first()
+    assert stored_event.processing_status == PaymentEventProcessingStatus.FAILED.value
     assert "Unexpected failure during case processing" in (
         stored_event.processing_error or ""
     )
@@ -358,19 +327,13 @@ def test_failed_event_can_safely_be_retried(db_session: Session):
 
     # Retry processing
     result = payment_event_processor.process_payment_event(db_session, event)
-    assert (
-        result.processing_status
-        == PaymentEventProcessingStatus.PROCESSED.value
-    )
+    assert result.processing_status == PaymentEventProcessingStatus.PROCESSED.value
     assert result.already_processed is False
     assert result.recovery_case_id is not None
 
     # Verify event state in DB
     db_session.refresh(event)
-    assert (
-        event.processing_status
-        == PaymentEventProcessingStatus.PROCESSED.value
-    )
+    assert event.processing_status == PaymentEventProcessingStatus.PROCESSED.value
     assert event.processing_error is None  # Error cleared on successful retry
 
 
@@ -393,26 +356,18 @@ def test_webhook_end_to_end_ingestion_triggers_recovery_case_creation(
     assert response.status_code == 200
 
     # Verify event was persisted and processed
-    event = (
-        db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
-    )
+    event = db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
     assert event is not None
     assert event.processing_status == PaymentEventProcessingStatus.PROCESSED.value
 
     # Verify RecoveryCase exists in DB
     payment = (
-        db_session.query(Payment)
-        .filter_by(razorpay_order_id="order_proc_001")
-        .first()
+        db_session.query(Payment).filter_by(razorpay_order_id="order_proc_001").first()
     )
     assert payment is not None
     assert payment.status == PaymentStatus.FAILED.value
 
-    case = (
-        db_session.query(RecoveryCase)
-        .filter_by(payment_id=payment.id)
-        .first()
-    )
+    case = db_session.query(RecoveryCase).filter_by(payment_id=payment.id).first()
     assert case is not None
     assert case.status == RecoveryCaseStatus.OPEN.value
     assert case.amount_at_risk == 299900

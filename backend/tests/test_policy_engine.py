@@ -131,9 +131,7 @@ def test_valid_allowed_decision(db_session: Session):
         last_attempt_hours_ago=3.0,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.ALLOWED
     assert outcome.triggered_rule_code is None
@@ -146,9 +144,7 @@ def test_max_attempts_blocked(db_session: Session):
         db_session, attempts_count=3, action_type=RecoveryActionType.RETRY_PAYMENT.value
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.BLOCKED
     assert outcome.triggered_rule_code == "POL-MAX-ATTEMPTS"
@@ -164,9 +160,7 @@ def test_retry_rate_limit_blocked(db_session: Session):
         action_type=RecoveryActionType.RETRY_PAYMENT.value,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.BLOCKED
     assert outcome.triggered_rule_code == "POL-RATE-LIMIT"
@@ -182,9 +176,7 @@ def test_retry_rate_limit_boundary_at_two_hours(db_session: Session):
         action_type=RecoveryActionType.RETRY_PAYMENT.value,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.ALLOWED
 
@@ -201,9 +193,7 @@ def test_permanent_card_blocked_error(db_session: Session):
             last_attempt_hours_ago=5.0,
         )
 
-        outcome = evaluate_rules(
-            case, payment, customer, agent_dec, attempts
-        )
+        outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
         assert outcome.evaluation_result == PolicyEvaluationResult.BLOCKED
         assert outcome.triggered_rule_code == "POL-PERM-FAIL"
@@ -219,9 +209,7 @@ def test_high_value_payment_human_review(db_session: Session):
         last_attempt_hours_ago=5.0,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.HUMAN_REVIEW
     assert outcome.triggered_rule_code == "POL-HIGH-VALUE"
@@ -237,9 +225,7 @@ def test_below_high_value_allowed(db_session: Session):
         last_attempt_hours_ago=5.0,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.ALLOWED
 
@@ -252,9 +238,7 @@ def test_blocked_customer_risk_tier(db_session: Session):
         action_type=RecoveryActionType.SEND_NOTIFICATION.value,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.BLOCKED
     assert outcome.triggered_rule_code == "POL-RISK-TIER"
@@ -270,9 +254,7 @@ def test_resolved_or_closed_case_blocked(db_session: Session):
             action_type=RecoveryActionType.RETRY_PAYMENT.value,
         )
 
-        outcome = evaluate_rules(
-            case, payment, customer, agent_dec, attempts
-        )
+        outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
         assert outcome.evaluation_result == PolicyEvaluationResult.BLOCKED
         assert outcome.triggered_rule_code == "POL-CASE-RESOLVED"
@@ -287,9 +269,7 @@ def test_low_ai_confidence_human_review(db_session: Session):
         action_type=RecoveryActionType.SEND_PAYMENT_LINK.value,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.HUMAN_REVIEW
     assert outcome.triggered_rule_code == "POL-CONF-FLOOR"
@@ -304,9 +284,7 @@ def test_confidence_at_or_above_floor_allowed(db_session: Session):
         action_type=RecoveryActionType.SEND_PAYMENT_LINK.value,
     )
 
-    outcome = evaluate_rules(
-        case, payment, customer, agent_dec, attempts
-    )
+    outcome = evaluate_rules(case, payment, customer, agent_dec, attempts)
 
     assert outcome.evaluation_result == PolicyEvaluationResult.ALLOWED
 
@@ -432,11 +410,7 @@ def test_repeated_evaluation_creates_immutable_history(db_session: Session):
 
     assert p1.id != p2.id
 
-    count = (
-        db_session.query(PolicyDecision)
-        .filter_by(recovery_case_id=case.id)
-        .count()
-    )
+    count = db_session.query(PolicyDecision).filter_by(recovery_case_id=case.id).count()
     assert count == 2
 
 
@@ -456,20 +430,12 @@ def test_transaction_rollback_on_persistence_failure(db_session: Session):
     """25. Test atomic rollback if database commit crashes."""
     _, _, case, agent_dec, _ = create_policy_fixtures(db_session)
 
-    with patch.object(
-        db_session, "commit", side_effect=RuntimeError("Disk failure")
-    ):
+    with patch.object(db_session, "commit", side_effect=RuntimeError("Disk failure")):
         with pytest.raises(PolicyPersistenceError):
-            policy_engine.evaluate(
-                db=db_session, agent_decision_id=agent_dec.id
-            )
+            policy_engine.evaluate(db=db_session, agent_decision_id=agent_dec.id)
 
     # 0 PolicyDecisions committed
-    count = (
-        db_session.query(PolicyDecision)
-        .filter_by(recovery_case_id=case.id)
-        .count()
-    )
+    count = db_session.query(PolicyDecision).filter_by(recovery_case_id=case.id).count()
     assert count == 0
 
 

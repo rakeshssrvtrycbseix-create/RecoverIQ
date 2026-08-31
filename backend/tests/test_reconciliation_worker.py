@@ -1,17 +1,12 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.models import (
-    AgentDecision,
     Customer,
     CustomerRiskTier,
     Payment,
-    PaymentAttempt,
-    PaymentAttemptStatus,
     PaymentStatus,
     PolicyDecision,
     PolicyEvaluationResult,
@@ -136,7 +131,9 @@ def test_stale_executing_action_is_reconciled(db_session: Session):
     worker = ReconciliationWorker()
     provider = MockProviderForReconWorker(outcome="SUCCESS")
     results = worker.run_reconciliation(
-        db=db_session, threshold_minutes=15, provider=provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=provider,  # type: ignore
     )
 
     assert len(results) == 1
@@ -153,7 +150,9 @@ def test_fresh_executing_action_is_not_reconciled(db_session: Session):
     worker = ReconciliationWorker()
     provider = MockProviderForReconWorker(outcome="SUCCESS")
     results = worker.run_reconciliation(
-        db=db_session, threshold_minutes=15, provider=provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=provider,  # type: ignore
     )
 
     assert len(results) == 0
@@ -168,7 +167,9 @@ def test_reconciliation_marks_failed_reconciliation(db_session: Session):
     worker = ReconciliationWorker()
     provider = MockProviderForReconWorker(outcome="FAILED")
     results = worker.run_reconciliation(
-        db=db_session, threshold_minutes=15, provider=provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=provider,  # type: ignore
     )
 
     assert len(results) == 1
@@ -185,7 +186,9 @@ def test_inconclusive_reconciliation_keeps_executing(db_session: Session):
     worker = ReconciliationWorker()
     provider = MockProviderForReconWorker(outcome="UNKNOWN")
     results = worker.run_reconciliation(
-        db=db_session, threshold_minutes=15, provider=provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=provider,  # type: ignore
     )
 
     assert len(results) == 0

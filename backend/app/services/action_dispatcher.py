@@ -169,11 +169,7 @@ class ActionDispatcher:
         )
 
         # 1. Load RecoveryAction
-        action = (
-            db.query(RecoveryAction)
-            .filter_by(id=recovery_action_id)
-            .first()
-        )
+        action = db.query(RecoveryAction).filter_by(id=recovery_action_id).first()
         if not action:
             raise RecoveryActionNotFoundError(
                 f"RecoveryAction '{recovery_action_id}' not found."
@@ -195,7 +191,10 @@ class ActionDispatcher:
                 .first()
             )
 
-        if not already_claimed and action.status == RecoveryActionStatus.EXECUTING.value:
+        if (
+            not already_claimed
+            and action.status == RecoveryActionStatus.EXECUTING.value
+        ):
             raise ConcurrentExecutionError(
                 f"RecoveryAction '{action.id}' is currently EXECUTING."
             )
@@ -228,30 +227,19 @@ class ActionDispatcher:
 
         # 4. Policy Clearance Validation
         policy_decision = (
-            db.query(PolicyDecision)
-            .filter_by(id=action.policy_decision_id)
-            .first()
+            db.query(PolicyDecision).filter_by(id=action.policy_decision_id).first()
         )
         if (
             not policy_decision
-            or policy_decision.evaluation_result
-            != PolicyEvaluationResult.ALLOWED.value
+            or policy_decision.evaluation_result != PolicyEvaluationResult.ALLOWED.value
         ):
-            res = (
-                policy_decision.evaluation_result
-                if policy_decision
-                else "MISSING"
-            )
+            res = policy_decision.evaluation_result if policy_decision else "MISSING"
             raise UnauthorizedActionError(
                 f"Cannot dispatch action '{action.id}' with policy evaluation '{res}'."
             )
 
         # 5. Case Actionability Validation
-        case = (
-            db.query(RecoveryCase)
-            .filter_by(id=action.recovery_case_id)
-            .first()
-        )
+        case = db.query(RecoveryCase).filter_by(id=action.recovery_case_id).first()
         if not case or case.status in TERMINAL_CASE_STATUSES:
             case_status = case.status if case else "MISSING"
             raise UnactionableCaseError(

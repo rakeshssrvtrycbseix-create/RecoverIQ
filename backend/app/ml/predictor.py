@@ -72,9 +72,7 @@ class RecoveryPredictor:
 
         # 3. Deterministic Priority & Channel Recommendation
         priority = self.classify_priority(prob_clamped)
-        channel, delay_hours = self.recommend_channel_and_delay(
-            features, prob_clamped
-        )
+        channel, delay_hours = self.recommend_channel_and_delay(features, prob_clamped)
 
         logger.info(
             "ml_prediction_calculated",

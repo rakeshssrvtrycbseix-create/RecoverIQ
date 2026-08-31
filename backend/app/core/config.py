@@ -43,6 +43,28 @@ class Settings(BaseSettings):
     # LLM (future)
     llm_api_key: str = ""
 
+    # Security & Authentication (JWT & API Keys)
+    jwt_secret_key: str = "recoveriq_dev_jwt_secret_change_in_production_998877"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 1440  # 24 hours
+    jwt_issuer: str = "RecoverIQ"
+    admin_api_key: str = ""  # Optional secret for machine-to-machine admin access
+
+    # Phase 10A: Security Hardening, Threat Detection & Fintech Trust Layer
+    cors_allowed_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    rate_limit_enabled: bool = True
+    rate_limit_auth_per_minute: int = 15
+    rate_limit_webhooks_per_minute: int = 120
+    rate_limit_mutations_per_minute: int = 60
+    rate_limit_reads_per_minute: int = 240
+    webhook_timestamp_tolerance_seconds: int = 0  # 0 = disabled (dev/test default); set to e.g. 300 in production for replay protection
+    max_request_body_bytes: int = 1_048_576  # 1 MB
+    enable_security_headers: bool = True
+    enable_pii_scanner: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

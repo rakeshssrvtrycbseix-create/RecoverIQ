@@ -51,11 +51,7 @@ class PolicyEngine:
         )
 
         # 1. Load AgentDecision
-        agent_decision = (
-            db.query(AgentDecision)
-            .filter_by(id=agent_decision_id)
-            .first()
-        )
+        agent_decision = db.query(AgentDecision).filter_by(id=agent_decision_id).first()
         if not agent_decision:
             raise AgentDecisionNotFoundError(
                 f"AgentDecision '{agent_decision_id}' not found"
@@ -63,9 +59,7 @@ class PolicyEngine:
 
         # 2. Load associated RecoveryCase aggregate
         case = (
-            db.query(RecoveryCase)
-            .filter_by(id=agent_decision.recovery_case_id)
-            .first()
+            db.query(RecoveryCase).filter_by(id=agent_decision.recovery_case_id).first()
         )
         if not case:
             raise RecoveryCaseNotFoundError(

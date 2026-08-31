@@ -35,8 +35,8 @@ from app.services.action_dispatcher import (
     InvalidActionStateError,
     InvalidActionTypeError,
     RecoveryActionNotFoundError,
-    UnauthorizedActionError,
     UnactionableCaseError,
+    UnauthorizedActionError,
     UnsafeActionPayloadError,
     action_dispatcher,
 )
@@ -270,7 +270,9 @@ def test_human_review_action_not_executed(db_session: Session):
         evaluation_result=PolicyEvaluationResult.HUMAN_REVIEW.value,
     )
 
-    with pytest.raises(UnauthorizedActionError, match="policy evaluation 'HUMAN_REVIEW'"):
+    with pytest.raises(
+        UnauthorizedActionError, match="policy evaluation 'HUMAN_REVIEW'"
+    ):
         action_dispatcher.dispatch_action(
             db=db_session,
             recovery_action_id=action.id,
@@ -419,7 +421,9 @@ def test_gateway_timeout_keeps_action_executing(db_session: Session):
     assert action.completed_at is None
 
 
-def test_gateway_timeout_creates_timeout_action_result_and_audit_log(db_session: Session):
+def test_gateway_timeout_creates_timeout_action_result_and_audit_log(
+    db_session: Session,
+):
     """Test gateway timeout persists ActionResult(TIMED_OUT) and AuditLog(ACTION_EXECUTION_TIMED_OUT)."""
     _, _, case, _, action = create_dispatcher_fixtures(db_session)
 
@@ -436,7 +440,7 @@ def test_gateway_timeout_creates_timeout_action_result_and_audit_log(db_session:
                 executed_at=datetime.now(UTC),
             )
 
-    result = action_dispatcher.dispatch_action(
+    action_dispatcher.dispatch_action(
         db=db_session,
         recovery_action_id=action.id,
         provider=TimeoutProvider(),  # type: ignore
@@ -444,9 +448,7 @@ def test_gateway_timeout_creates_timeout_action_result_and_audit_log(db_session:
 
     # 1. Assert ActionResult row in database
     db_result = (
-        db_session.query(ActionResult)
-        .filter_by(recovery_action_id=action.id)
-        .first()
+        db_session.query(ActionResult).filter_by(recovery_action_id=action.id).first()
     )
     assert db_result is not None
     assert db_result.execution_status == "TIMED_OUT"

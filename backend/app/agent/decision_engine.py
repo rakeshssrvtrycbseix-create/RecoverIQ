@@ -65,11 +65,7 @@ class RecoveryDecisionEngine:
         )
 
         # 1. Load RecoveryCase aggregate
-        case = (
-            db.query(RecoveryCase)
-            .filter_by(id=recovery_case_id)
-            .first()
-        )
+        case = db.query(RecoveryCase).filter_by(id=recovery_case_id).first()
         if not case:
             raise RecoveryCaseNotFoundError(
                 f"RecoveryCase '{recovery_case_id}' not found"

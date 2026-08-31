@@ -47,18 +47,14 @@ def test_get_or_create_customer_with_notes_and_razorpay_id(
         "contact": "+919876543210",
         "notes": {"merchant_customer_id": "usr_merchant_99"},
     }
-    cust_1 = recovery_case_service.get_or_create_customer(
-        db_session, payload_1
-    )
+    cust_1 = recovery_case_service.get_or_create_customer(db_session, payload_1)
     assert cust_1.external_customer_id == "usr_merchant_99"
     assert cust_1.razorpay_customer_id == "cust_rzp_123"
     assert cust_1.email_masked == "j***e@example.com"
     assert cust_1.phone_masked == "+91******3210"
 
     # Resolving again with same merchant_customer_id returns existing customer
-    cust_2 = recovery_case_service.get_or_create_customer(
-        db_session, payload_1
-    )
+    cust_2 = recovery_case_service.get_or_create_customer(db_session, payload_1)
     assert cust_2.id == cust_1.id
 
 
@@ -167,9 +163,7 @@ def test_handle_payment_failure_creates_new_recovery_case(db_session: Session):
     assert payment.status == PaymentStatus.FAILED.value
 
     # Check audit log
-    audit = (
-        db_session.query(AuditLog).filter_by(recovery_case_id=case.id).first()
-    )
+    audit = db_session.query(AuditLog).filter_by(recovery_case_id=case.id).first()
     assert audit is not None
     assert audit.event_type == "RECOVERY_CASE_OPENED"
     assert audit.action == "RECOVERY_CASE_OPENED"
@@ -217,9 +211,7 @@ def test_multiple_payment_failures_update_existing_active_case(
 
     # Verify no duplicate active cases exist for this payment
     cases_count = (
-        db_session.query(RecoveryCase)
-        .filter_by(payment_id=case_1.payment_id)
-        .count()
+        db_session.query(RecoveryCase).filter_by(payment_id=case_1.payment_id).count()
     )
     assert cases_count == 1
 
@@ -265,15 +257,12 @@ def test_handle_payment_captured_resolves_active_recovery_case(
     assert resolved_case.status == RecoveryCaseStatus.RECOVERED.value
     assert resolved_case.recovered_amount == 350000
     assert (
-        resolved_case.closed_reason
-        == RecoveryCaseClosedReason.PAYMENT_RECOVERED.value
+        resolved_case.closed_reason == RecoveryCaseClosedReason.PAYMENT_RECOVERED.value
     )
     assert resolved_case.resolved_at is not None
 
     # Check payment status
-    payment = (
-        db_session.query(Payment).filter_by(id=resolved_case.payment_id).first()
-    )
+    payment = db_session.query(Payment).filter_by(id=resolved_case.payment_id).first()
     assert payment.status == PaymentStatus.CAPTURED.value
 
 
@@ -328,15 +317,11 @@ def test_late_payment_failed_does_not_reopen_captured_payment_case(
     event_cap = create_dummy_payment_event(
         "evt_cap_first", "payment.captured", {"payment": payload_cap}
     )
-    recovery_case_service.handle_payment_captured(
-        db_session, event_cap, payload_cap
-    )
+    recovery_case_service.handle_payment_captured(db_session, event_cap, payload_cap)
 
     # Verify payment is CAPTURED
     payment = (
-        db_session.query(Payment)
-        .filter_by(razorpay_order_id="order_prot_001")
-        .first()
+        db_session.query(Payment).filter_by(razorpay_order_id="order_prot_001").first()
     )
     assert payment.status == PaymentStatus.CAPTURED.value
 

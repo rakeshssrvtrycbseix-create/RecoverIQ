@@ -104,9 +104,7 @@ def sanitize_razorpay_payload(payload: dict[str, Any]) -> dict[str, Any]:
     sanitized = sanitize_dict_recursively(sanitized)
 
     # Specific check for payment entity cardholder name
-    payment_entity = (
-        sanitized.get("payload", {}).get("payment", {}).get("entity", {})
-    )
+    payment_entity = sanitized.get("payload", {}).get("payment", {}).get("entity", {})
     if isinstance(payment_entity, dict):
         card = payment_entity.get("card")
         if isinstance(card, dict) and "name" in card and card["name"]:

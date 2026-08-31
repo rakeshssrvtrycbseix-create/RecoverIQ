@@ -121,16 +121,12 @@ class RecoveryCaseService:
         payment = None
         if order_id:
             payment = (
-                db.query(Payment)
-                .filter_by(razorpay_order_id=str(order_id))
-                .first()
+                db.query(Payment).filter_by(razorpay_order_id=str(order_id)).first()
             )
 
         if not payment and invoice_id:
             payment = (
-                db.query(Payment)
-                .filter_by(razorpay_invoice_id=str(invoice_id))
-                .first()
+                db.query(Payment).filter_by(razorpay_invoice_id=str(invoice_id)).first()
             )
 
         if not payment:
@@ -170,11 +166,7 @@ class RecoveryCaseService:
             if existing:
                 return existing
 
-        count = (
-            db.query(PaymentAttempt)
-            .filter_by(payment_id=payment.id)
-            .count()
-        )
+        count = db.query(PaymentAttempt).filter_by(payment_id=payment.id).count()
         attempt_number = count + 1
 
         card_info = payload_payment.get("card")

@@ -1,22 +1,16 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 
 import pytest
 from sqlalchemy.orm import Session
 
 from app.agent.decision_engine import recovery_decision_engine
-from app.core.config import Settings
 from app.models import (
     ActionResult,
-    AgentDecision,
-    AuditActorType,
     AuditLog,
     Customer,
     CustomerRiskTier,
     Payment,
-    PaymentAttempt,
-    PaymentAttemptStatus,
     PaymentStatus,
     PolicyDecision,
     PolicyEvaluationResult,
@@ -177,7 +171,9 @@ def test_stale_executing_action_is_reconciled_to_completed(db_session: Session):
     mock_provider = MockReconciliationProvider(outcome_status="SUCCESS")
     reconciler = ActionReconciliationService()
     results = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
 
     assert len(results) == 1
@@ -210,7 +206,9 @@ def test_stale_executing_action_is_reconciled_to_failed(db_session: Session):
     mock_provider = MockReconciliationProvider(outcome_status="FAILED")
     reconciler = ActionReconciliationService()
     results = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
 
     assert len(results) == 1
@@ -229,7 +227,9 @@ def test_inconclusive_reconciliation_remains_executing(db_session: Session):
     mock_provider = MockReconciliationProvider(outcome_status="UNKNOWN")
     reconciler = ActionReconciliationService()
     results = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
 
     assert len(results) == 0
@@ -259,20 +259,22 @@ def test_reconciliation_is_idempotent(db_session: Session):
     reconciler = ActionReconciliationService()
 
     res1 = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
     assert len(res1) == 1
 
     # Second pass: action is now COMPLETED, so it's not scanned as EXECUTING
     res2 = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
     assert len(res2) == 0
 
     results_count = (
-        db_session.query(ActionResult)
-        .filter_by(recovery_action_id=action.id)
-        .count()
+        db_session.query(ActionResult).filter_by(recovery_action_id=action.id).count()
     )
     assert results_count == 1
 
@@ -355,7 +357,10 @@ async def test_full_recovery_pipeline_end_to_end_integration(db_session: Session
         recovery_case_id=case.id,
     )
     assert agent_dec is not None
-    assert agent_dec.proposed_action_type == RecoveryActionType.SEND_NOTIFICATION.value or agent_dec.proposed_action_type == RecoveryActionType.RETRY_PAYMENT.value
+    assert (
+        agent_dec.proposed_action_type == RecoveryActionType.SEND_NOTIFICATION.value
+        or agent_dec.proposed_action_type == RecoveryActionType.RETRY_PAYMENT.value
+    )
 
     # 3. Evaluate PolicyDecision (Phase 6C)
     now_utc = datetime.now(UTC)
@@ -393,11 +398,7 @@ async def test_full_recovery_pipeline_end_to_end_integration(db_session: Session
     assert action.status == RecoveryActionStatus.COMPLETED.value
 
     # 6. Verify complete Audit Trail
-    audit_logs = (
-        db_session.query(AuditLog)
-        .filter_by(recovery_case_id=case.id)
-        .all()
-    )
+    audit_logs = db_session.query(AuditLog).filter_by(recovery_case_id=case.id).all()
     event_types = {a.event_type for a in audit_logs}
     assert "AGENT_DECISION_GENERATED" in event_types
     assert "POLICY_DECISION_EVALUATED" in event_types
@@ -434,7 +435,9 @@ def test_timed_out_action_is_reconciled(db_session: Session):
     mock_provider = MockReconciliationProvider(outcome_status="SUCCESS")
     reconciler = ActionReconciliationService()
     results = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
 
     assert len(results) == 1
@@ -453,7 +456,9 @@ def test_reconciliation_marks_failed_timeout_failed(db_session: Session):
     mock_provider = MockReconciliationProvider(outcome_status="FAILED")
     reconciler = ActionReconciliationService()
     results = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
 
     assert len(results) == 1
@@ -472,7 +477,9 @@ def test_reconciliation_defers_inconclusive_timeout(db_session: Session):
     mock_provider = MockReconciliationProvider(outcome_status="UNKNOWN")
     reconciler = ActionReconciliationService()
     results = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
 
     assert len(results) == 0
@@ -489,9 +496,10 @@ def test_timeout_reconciliation_does_not_create_duplicate_payment(db_session: Se
     mock_provider = MockReconciliationProvider(outcome_status="SUCCESS")
     reconciler = ActionReconciliationService()
     results = reconciler.reconcile_stale_actions(
-        db=db_session, threshold_minutes=15, provider=mock_provider  # type: ignore
+        db=db_session,
+        threshold_minutes=15,
+        provider=mock_provider,  # type: ignore
     )
 
     assert len(results) == 1
     assert f"recoveriq_{action.id}" in results[0].provider_reference_id
-

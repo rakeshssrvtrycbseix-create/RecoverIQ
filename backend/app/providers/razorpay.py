@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -34,7 +33,15 @@ def _sanitize_response_data(data: Any) -> Any:
             k_lower = str(k).lower()
             if any(
                 secret in k_lower
-                for secret in ["secret", "key", "token", "auth", "password", "cvv", "pin"]
+                for secret in [
+                    "secret",
+                    "key",
+                    "token",
+                    "auth",
+                    "password",
+                    "cvv",
+                    "pin",
+                ]
             ):
                 sanitized[k] = "[REDACTED]"
             else:
@@ -132,13 +139,11 @@ class RazorpayActionProvider:
     ) -> ProviderResult:
         """Execute a payment retry or invoice charge via Razorpay API."""
         payload = action.action_payload or {}
-        sub_id = payload.get("subscription_id") or payload.get("razorpay_subscription_id")
-
-        endpoint = (
-            f"/subscriptions/{sub_id}/charge"
-            if sub_id
-            else "/orders"
+        sub_id = payload.get("subscription_id") or payload.get(
+            "razorpay_subscription_id"
         )
+
+        endpoint = f"/subscriptions/{sub_id}/charge" if sub_id else "/orders"
         body = {
             "amount": payload.get("amount", 100),
             "currency": payload.get("currency", "INR"),
@@ -149,7 +154,9 @@ class RazorpayActionProvider:
         }
         headers = {"X-Razorpay-Idempotency": idempotency_key}
 
-        return self._send_request("POST", endpoint, body, headers, idempotency_key, now_utc)
+        return self._send_request(
+            "POST", endpoint, body, headers, idempotency_key, now_utc
+        )
 
     def _execute_payment_link(
         self,
@@ -181,8 +188,12 @@ class RazorpayActionProvider:
     ) -> ProviderResult:
         """Cancel/halt a subscription in Razorpay."""
         payload = action.action_payload or {}
-        sub_id = payload.get("subscription_id") or payload.get("razorpay_subscription_id")
-        endpoint = f"/subscriptions/{sub_id}/cancel" if sub_id else "/subscriptions/halt"
+        sub_id = payload.get("subscription_id") or payload.get(
+            "razorpay_subscription_id"
+        )
+        endpoint = (
+            f"/subscriptions/{sub_id}/cancel" if sub_id else "/subscriptions/halt"
+        )
         body = {"cancel_at_cycle_end": False}
         headers = {"X-Razorpay-Idempotency": idempotency_key}
         return self._send_request(
@@ -229,7 +240,9 @@ class RazorpayActionProvider:
                     executed_at=now_utc,
                 )
             else:
-                err_dict = resp_json.get("error", {}) if isinstance(resp_json, dict) else {}
+                err_dict = (
+                    resp_json.get("error", {}) if isinstance(resp_json, dict) else {}
+                )
                 err_reason = err_dict.get("code") or f"HTTP_{resp.status_code}"
                 err_desc = err_dict.get("description") or resp.text[:250]
 
@@ -245,7 +258,9 @@ class RazorpayActionProvider:
                 )
 
         except httpx.TimeoutException:
-            logger.error("razorpay_request_timeout", extra={"idempotency_key": idempotency_key})
+            logger.error(
+                "razorpay_request_timeout", extra={"idempotency_key": idempotency_key}
+            )
             return ProviderResult(
                 success=False,
                 execution_status="TIMED_OUT",
@@ -258,7 +273,9 @@ class RazorpayActionProvider:
             )
 
         except (httpx.ConnectError, httpx.NetworkError) as exc:
-            logger.error("razorpay_network_error", extra={"idempotency_key": idempotency_key})
+            logger.error(
+                "razorpay_network_error", extra={"idempotency_key": idempotency_key}
+            )
             return ProviderResult(
                 success=False,
                 execution_status="FAILED",
@@ -296,9 +313,7 @@ class RazorpayActionProvider:
         try:
             with self._get_client() as client:
                 # Query payment links or payments endpoint
-                resp = client.get(
-                    f"/payment_links?reference_id={idempotency_key}"
-                )
+                resp = client.get(f"/payment_links?reference_id={idempotency_key}")
 
             if resp.status_code == 200:
                 data = resp.json()

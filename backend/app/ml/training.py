@@ -15,12 +15,8 @@ def calculate_roc_auc(y_true: list[int], y_scores: list[float]) -> float:
     if n == 0:
         return 0.5
 
-    positives = [
-        score for y, score in zip(y_true, y_scores, strict=False) if y == 1
-    ]
-    negatives = [
-        score for y, score in zip(y_true, y_scores, strict=False) if y == 0
-    ]
+    positives = [score for y, score in zip(y_true, y_scores, strict=False) if y == 1]
+    negatives = [score for y, score in zip(y_true, y_scores, strict=False) if y == 0]
 
     n_pos = len(positives)
     n_neg = len(negatives)
@@ -54,16 +50,13 @@ def calculate_pr_auc(y_true: list[int], y_scores: list[float]) -> float:
     for th in thresholds:
         y_pred = [1 if s >= th else 0 for s in y_scores]
         tp = sum(
-            1 for yt, yp in zip(y_true, y_pred, strict=False)
-            if yt == 1 and yp == 1
+            1 for yt, yp in zip(y_true, y_pred, strict=False) if yt == 1 and yp == 1
         )
         fp = sum(
-            1 for yt, yp in zip(y_true, y_pred, strict=False)
-            if yt == 0 and yp == 1
+            1 for yt, yp in zip(y_true, y_pred, strict=False) if yt == 0 and yp == 1
         )
         fn = sum(
-            1 for yt, yp in zip(y_true, y_pred, strict=False)
-            if yt == 1 and yp == 0
+            1 for yt, yp in zip(y_true, y_pred, strict=False) if yt == 1 and yp == 0
         )
 
         prec = tp / (tp + fp) if (tp + fp) > 0 else 1.0

@@ -11,8 +11,6 @@ from app.models import (
     Customer,
     CustomerRiskTier,
     Payment,
-    PaymentAttempt,
-    PaymentAttemptStatus,
     PaymentStatus,
     PolicyDecision,
     PolicyEvaluationResult,
@@ -308,4 +306,3 @@ def test_provider_success_crash_before_finalization_reconciled(db_session: Sessi
 
     db_session.refresh(action)
     assert action.status == RecoveryActionStatus.COMPLETED.value
-

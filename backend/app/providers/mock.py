@@ -98,9 +98,7 @@ class MockActionProvider:
     ) -> ProviderResult:
         """Execute simulated recovery action with full safety verification."""
         if self.force_exception:
-            raise RuntimeError(
-                "Simulated unhandled provider network/system crash"
-            )
+            raise RuntimeError("Simulated unhandled provider network/system crash")
 
         # Safety validation: Reject sensitive payload data
         if action.action_payload:

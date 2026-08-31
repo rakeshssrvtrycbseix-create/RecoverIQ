@@ -94,11 +94,7 @@ def create_test_fixtures(
 def test_feature_extraction_with_valid_entities(db_session: Session):
     """1. Test feature extraction accurately builds feature vector."""
     customer, payment, case = create_test_fixtures(db_session)
-    attempts = (
-        db_session.query(PaymentAttempt)
-        .filter_by(payment_id=payment.id)
-        .all()
-    )
+    attempts = db_session.query(PaymentAttempt).filter_by(payment_id=payment.id).all()
 
     features = extract_features(case, payment, customer, attempts)
 
@@ -120,9 +116,7 @@ def test_no_pii_enters_model_features():
     }
     validate_no_pii_in_features(safe_dict)  # Must pass
 
-    with pytest.raises(
-        ValueError, match="PII violation: Forbidden keyword 'email'"
-    ):
+    with pytest.raises(ValueError, match="PII violation: Forbidden keyword 'email'"):
         validate_no_pii_in_features({"email": "user@example.com"})
 
     with pytest.raises(
@@ -130,9 +124,7 @@ def test_no_pii_enters_model_features():
     ):
         validate_no_pii_in_features({"card_number": "4111111111111111"})
 
-    with pytest.raises(
-        ValueError, match="PII violation: Forbidden keyword 'cvv'"
-    ):
+    with pytest.raises(ValueError, match="PII violation: Forbidden keyword 'cvv'"):
         validate_no_pii_in_features({"cvv": "123"})
 
 
@@ -251,30 +243,19 @@ def test_deterministic_priority_classification_boundaries():
     """6. Test exact boundary thresholds for priority classification."""
     predictor = RecoveryPredictor()
 
-    assert (
-        predictor.classify_priority(0.75)
-        == RecoveryPriority.HIGH_RECOVERY_POTENTIAL
-    )
-    assert (
-        predictor.classify_priority(0.95)
-        == RecoveryPriority.HIGH_RECOVERY_POTENTIAL
-    )
+    assert predictor.classify_priority(0.75) == RecoveryPriority.HIGH_RECOVERY_POTENTIAL
+    assert predictor.classify_priority(0.95) == RecoveryPriority.HIGH_RECOVERY_POTENTIAL
     assert (
         predictor.classify_priority(0.7499)
         == RecoveryPriority.MEDIUM_RECOVERY_POTENTIAL
     )
     assert (
-        predictor.classify_priority(0.40)
-        == RecoveryPriority.MEDIUM_RECOVERY_POTENTIAL
+        predictor.classify_priority(0.40) == RecoveryPriority.MEDIUM_RECOVERY_POTENTIAL
     )
     assert (
-        predictor.classify_priority(0.3999)
-        == RecoveryPriority.LOW_RECOVERY_POTENTIAL
+        predictor.classify_priority(0.3999) == RecoveryPriority.LOW_RECOVERY_POTENTIAL
     )
-    assert (
-        predictor.classify_priority(0.05)
-        == RecoveryPriority.LOW_RECOVERY_POTENTIAL
-    )
+    assert predictor.classify_priority(0.05) == RecoveryPriority.LOW_RECOVERY_POTENTIAL
 
 
 def test_prediction_reproducibility_is_strictly_deterministic():
@@ -337,9 +318,7 @@ def test_append_only_multiple_predictions_for_same_case(db_session: Session):
 
     # Verify count in database
     predictions_count = (
-        db_session.query(MLPrediction)
-        .filter_by(recovery_case_id=case.id)
-        .count()
+        db_session.query(MLPrediction).filter_by(recovery_case_id=case.id).count()
     )
     assert predictions_count == 2
 

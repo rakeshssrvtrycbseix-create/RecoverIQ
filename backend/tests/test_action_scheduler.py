@@ -202,9 +202,7 @@ def test_blocked_policy_creates_zero_actions(db_session: Session):
     # Assert None returned and 0 actions created
     assert action is None
     actions_count = (
-        db_session.query(RecoveryAction)
-        .filter_by(recovery_case_id=case.id)
-        .count()
+        db_session.query(RecoveryAction).filter_by(recovery_case_id=case.id).count()
     )
     assert actions_count == 0
 
@@ -237,9 +235,7 @@ def test_human_review_policy_creates_zero_actions(db_session: Session):
     # Assert None returned and 0 actions created
     assert action is None
     actions_count = (
-        db_session.query(RecoveryAction)
-        .filter_by(recovery_case_id=case.id)
-        .count()
+        db_session.query(RecoveryAction).filter_by(recovery_case_id=case.id).count()
     )
     assert actions_count == 0
 
@@ -352,9 +348,7 @@ def test_idempotency_prevents_duplicate_action(db_session: Session):
     assert a1.id == a2.id
 
     actions_count = (
-        db_session.query(RecoveryAction)
-        .filter_by(recovery_case_id=case.id)
-        .count()
+        db_session.query(RecoveryAction).filter_by(recovery_case_id=case.id).count()
     )
     assert actions_count == 1
 
@@ -444,9 +438,7 @@ def test_database_failure_rolls_back_action_and_audit(db_session: Session):
     """13. Test database commit failure rolls back cleanly."""
     _, _, case, _, policy_dec = create_scheduler_fixtures(db_session)
 
-    with patch.object(
-        db_session, "commit", side_effect=RuntimeError("Disk failure")
-    ):
+    with patch.object(db_session, "commit", side_effect=RuntimeError("Disk failure")):
         with pytest.raises(ActionPersistenceError):
             action_scheduler.schedule_for_policy_decision(
                 db=db_session,
@@ -454,11 +446,7 @@ def test_database_failure_rolls_back_action_and_audit(db_session: Session):
             )
 
     # 0 RecoveryActions committed
-    count = (
-        db_session.query(RecoveryAction)
-        .filter_by(recovery_case_id=case.id)
-        .count()
-    )
+    count = db_session.query(RecoveryAction).filter_by(recovery_case_id=case.id).count()
     assert count == 0
 
 

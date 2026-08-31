@@ -53,9 +53,7 @@ class RecoveryActionScheduler:
 
         # 1. Load PolicyDecision
         policy_decision = (
-            db.query(PolicyDecision)
-            .filter_by(id=policy_decision_id)
-            .first()
+            db.query(PolicyDecision).filter_by(id=policy_decision_id).first()
         )
         if not policy_decision:
             raise PolicyDecisionNotFoundError(

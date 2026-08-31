@@ -1,6 +1,5 @@
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -214,7 +213,8 @@ class ActionReconciliationService:
                     previous_state={"status": RecoveryActionStatus.EXECUTING.value},
                     new_state={"status": RecoveryActionStatus.EXECUTING.value},
                     metadata_json={
-                        "reason": outcome.failure_reason or "INCONCLUSIVE_EXTERNAL_STATUS",
+                        "reason": outcome.failure_reason
+                        or "INCONCLUSIVE_EXTERNAL_STATUS",
                     },
                 )
                 db.add(audit)

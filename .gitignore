@@ -60,3 +60,7 @@ ml/data/*.parquet
 # Misc
 *.bak
 *.tmp
+*.db
+*.sqlite
+*.sqlite3
+scratch/

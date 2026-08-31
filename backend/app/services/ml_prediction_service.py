@@ -46,20 +46,14 @@ class MLPredictionService:
         )
 
         # 1. Load RecoveryCase aggregate
-        case = (
-            db.query(RecoveryCase)
-            .filter_by(id=recovery_case_id)
-            .first()
-        )
+        case = db.query(RecoveryCase).filter_by(id=recovery_case_id).first()
         if not case:
             raise ValueError(f"RecoveryCase '{recovery_case_id}' not found")
 
         # 2. Load associated Payment and Customer
         payment = db.query(Payment).filter_by(id=case.payment_id).first()
         if not payment:
-            raise ValueError(
-                f"Payment '{case.payment_id}' for RecoveryCase not found"
-            )
+            raise ValueError(f"Payment '{case.payment_id}' for RecoveryCase not found")
 
         customer = db.query(Customer).filter_by(id=case.customer_id).first()
         if not customer:

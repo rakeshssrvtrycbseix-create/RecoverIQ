@@ -1,26 +1,13 @@
 import uuid
-from decimal import Decimal
 
 import httpx
 import pytest
 
 from app.core.config import Settings
 from app.models import (
-    AgentDecision,
-    Customer,
-    CustomerRiskTier,
-    Payment,
-    PaymentAttempt,
-    PaymentAttemptStatus,
-    PaymentStatus,
-    PolicyDecision,
-    PolicyEvaluationResult,
     RecoveryAction,
     RecoveryActionStatus,
     RecoveryActionType,
-    RecoveryCase,
-    RecoveryCaseStatus,
-    RecoveryStage,
 )
 from app.providers.exceptions import (
     LiveActionsDisabledError,
@@ -46,7 +33,8 @@ def create_test_action(
         action_idempotency_key=f"act_{case_id}_{pol_id}_{action_type}",
         action_type=action_type,
         status=RecoveryActionStatus.SCHEDULED.value,
-        action_payload=payload or {"subscription_id": "sub_test_12345", "amount": 199900},
+        action_payload=payload
+        or {"subscription_id": "sub_test_12345", "amount": 199900},
     )
 
 
@@ -87,7 +75,9 @@ def test_live_execution_disabled_by_default_raises_error():
     provider = RazorpayActionProvider(settings=settings)
     action = create_test_action()
 
-    with pytest.raises(LiveActionsDisabledError, match="Live financial operations are disabled"):
+    with pytest.raises(
+        LiveActionsDisabledError, match="Live financial operations are disabled"
+    ):
         provider.execute(action)
 
 
@@ -99,7 +89,9 @@ def test_successful_payment_retry_execution():
         assert request.method == "POST"
         assert "/subscriptions/sub_test_12345/charge" in str(request.url)
         assert request.headers.get("X-Razorpay-Idempotency") == f"recoveriq_{action.id}"
-        return httpx.Response(200, json={"id": "pay_test_success_123", "status": "captured"})
+        return httpx.Response(
+            200, json={"id": "pay_test_success_123", "status": "captured"}
+        )
 
     transport = httpx.MockTransport(mock_handler)
     client = httpx.Client(transport=transport, base_url="https://api.razorpay.com/v1")
@@ -126,7 +118,9 @@ def test_successful_payment_link_execution():
     def mock_handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
         assert "/payment_links" in str(request.url)
-        return httpx.Response(200, json={"id": "plink_test_123", "short_url": "https://rzp.io/i/123"})
+        return httpx.Response(
+            200, json={"id": "plink_test_123", "short_url": "https://rzp.io/i/123"}
+        )
 
     transport = httpx.MockTransport(mock_handler)
     client = httpx.Client(transport=transport, base_url="https://api.razorpay.com/v1")

@@ -268,10 +268,7 @@ async def test_missing_ml_prediction_handling(db_session: Session):
 
     assert decision is not None
     assert decision.ml_prediction_id is None
-    assert (
-        decision.proposed_action_type
-        == RecoveryActionType.SEND_NOTIFICATION.value
-    )
+    assert decision.proposed_action_type == RecoveryActionType.SEND_NOTIFICATION.value
 
 
 @pytest.mark.anyio
@@ -308,9 +305,7 @@ async def test_repeated_inference_creates_immutable_history(
     assert d1.id != d2.id
 
     decisions_count = (
-        db_session.query(AgentDecision)
-        .filter_by(recovery_case_id=case.id)
-        .count()
+        db_session.query(AgentDecision).filter_by(recovery_case_id=case.id).count()
     )
     assert decisions_count == 2
 
@@ -500,9 +495,7 @@ async def test_provider_failure_rollback(db_session: Session):
 
     # Assert 0 AgentDecisions exist
     stored_count = (
-        db_session.query(AgentDecision)
-        .filter_by(recovery_case_id=case.id)
-        .count()
+        db_session.query(AgentDecision).filter_by(recovery_case_id=case.id).count()
     )
     assert stored_count == 0
 
@@ -521,9 +514,7 @@ async def test_validation_failure_rollback(db_session: Session):
 
     # Assert 0 AgentDecisions exist
     stored_count = (
-        db_session.query(AgentDecision)
-        .filter_by(recovery_case_id=case.id)
-        .count()
+        db_session.query(AgentDecision).filter_by(recovery_case_id=case.id).count()
     )
     assert stored_count == 0
 
@@ -533,9 +524,7 @@ async def test_database_failure_rollback(db_session: Session):
     """18. Test that database persistence crash rolls back cleanly."""
     _, _, case, _ = create_decision_fixtures(db_session)
 
-    with patch.object(
-        db_session, "commit", side_effect=RuntimeError("Disk crash")
-    ):
+    with patch.object(db_session, "commit", side_effect=RuntimeError("Disk crash")):
         with pytest.raises(DecisionPersistenceError):
             await recovery_decision_engine.generate_decision(
                 db=db_session,

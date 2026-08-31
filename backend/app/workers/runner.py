@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from datetime import UTC, datetime
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -130,8 +131,7 @@ class WorkerRunner:
     ) -> None:
         """Continuous async reconciliation loop for stale executing actions."""
         interval = (
-            reconciliation_interval
-            or self.settings.reconciliation_interval_seconds
+            reconciliation_interval or self.settings.reconciliation_interval_seconds
         )
         logger.info(
             "worker_reconciliation_loop_started",

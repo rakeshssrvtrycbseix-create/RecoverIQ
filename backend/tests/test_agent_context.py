@@ -317,25 +317,19 @@ def test_validate_zero_pii_rejects_secrets_and_cards():
     with pytest.raises(
         ValueError, match="Zero-PII violation: Secret/token prefix detected"
     ):
-        validate_zero_pii_and_secrets(
-            {"auth_header": "Bearer rzp_live_abcdef123456"}
-        )
+        validate_zero_pii_and_secrets({"auth_header": "Bearer rzp_live_abcdef123456"})
 
     with pytest.raises(
         ValueError, match="Zero-PII violation: Card-like number detected"
     ):
-        validate_zero_pii_and_secrets(
-            {"custom_note": "4111 1111 1111 1111"}
-        )
+        validate_zero_pii_and_secrets({"custom_note": "4111 1111 1111 1111"})
 
 
 def test_validate_zero_pii_rejects_nested_structures():
     """Test that deeply nested forbidden keys or values are detected and rejected."""
     nested_data = {
         "metadata": {
-            "level1": {
-                "level2": [{"item_tag": "safe"}, {"api_key": "secret_val"}]
-            }
+            "level1": {"level2": [{"item_tag": "safe"}, {"api_key": "secret_val"}]}
         }
     }
     with pytest.raises(
@@ -358,9 +352,7 @@ def test_agent_decision_output_schema_validation():
         suggested_payload={"channel": "GATEWAY_API", "target": "GATEWAY"},
         recommended_delay_hours=2,
     )
-    assert (
-        valid_output.proposed_action_type == RecoveryActionType.RETRY_PAYMENT
-    )
+    assert valid_output.proposed_action_type == RecoveryActionType.RETRY_PAYMENT
     assert valid_output.confidence_score == 0.85
     assert valid_output.agent_name == "RecoveryOrchestrator"
 

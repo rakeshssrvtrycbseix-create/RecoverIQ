@@ -42,7 +42,9 @@ def test_razorpay_without_live_flag_raises_error():
         razorpay_key_secret="rzp_sec_456",
         allow_live_financial_actions=False,  # Disabled
     )
-    with pytest.raises(LiveActionsDisabledError, match="Live financial operations are disabled"):
+    with pytest.raises(
+        LiveActionsDisabledError, match="Live financial operations are disabled"
+    ):
         ProviderFactory.get_provider(settings=settings)
 
 

@@ -24,15 +24,11 @@ def validate_no_pii_in_features(features_dict: dict) -> None:
     for key, val in features_dict.items():
         key_lower = str(key).lower()
         if any(keyword in key_lower for keyword in FORBIDDEN_PII_KEYWORDS):
-            raise ValueError(
-                f"PII violation: Forbidden keyword '{key}' in features"
-            )
+            raise ValueError(f"PII violation: Forbidden keyword '{key}' in features")
         if isinstance(val, str):
             val_lower = val.lower()
             if "@" in val_lower and ("." in val_lower or "example" in val_lower):
-                raise ValueError(
-                    f"PII violation: Email-like value detected in '{key}'"
-                )
+                raise ValueError(f"PII violation: Email-like value detected in '{key}'")
 
 
 def extract_features(
@@ -106,9 +102,7 @@ def extract_features(
         sub_created = payment.subscription.created_at
         if sub_created.tzinfo is None:
             sub_created = sub_created.replace(tzinfo=UTC)
-        subscription_age_days = max(
-            0, (eval_time - sub_created).days
-        )
+        subscription_age_days = max(0, (eval_time - sub_created).days)
 
     # 5. Build and validate feature object
     features = RecoveryFeatures(

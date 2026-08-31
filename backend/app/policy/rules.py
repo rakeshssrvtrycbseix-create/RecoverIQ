@@ -132,13 +132,10 @@ def evaluate_rules(
     # RULE 4: POL-PERM-FAIL (Precedence 4)
     # Applies to retry actions for permanent card/account failures
     # -------------------------------------------------------------------------
-    if (
-        failure_reason in PERMANENT_ERROR_REASONS
-        and action_type in {
-            RecoveryActionType.RETRY_PAYMENT.value,
-            RecoveryActionType.RETRY_PAYMENT,
-        }
-    ):
+    if failure_reason in PERMANENT_ERROR_REASONS and action_type in {
+        RecoveryActionType.RETRY_PAYMENT.value,
+        RecoveryActionType.RETRY_PAYMENT,
+    }:
         return PolicyEvaluationOutcome(
             evaluation_result=PolicyEvaluationResult.BLOCKED,
             policy_engine_version=POLICY_ENGINE_VERSION,
@@ -155,14 +152,15 @@ def evaluate_rules(
     # RULE 5: POL-RATE-LIMIT (Precedence 5)
     # Minimum 2-hour cooldown between payment retry attempts
     # -------------------------------------------------------------------------
-    if action_type in {
-        RecoveryActionType.RETRY_PAYMENT.value,
-        RecoveryActionType.RETRY_PAYMENT,
-    } and attempts:
-        valid_attempts = [
-            a for a in attempts
-            if a.initiated_at is not None
-        ]
+    if (
+        action_type
+        in {
+            RecoveryActionType.RETRY_PAYMENT.value,
+            RecoveryActionType.RETRY_PAYMENT,
+        }
+        and attempts
+    ):
+        valid_attempts = [a for a in attempts if a.initiated_at is not None]
         if valid_attempts:
             latest_attempt = max(
                 valid_attempts,
@@ -192,13 +190,10 @@ def evaluate_rules(
     # RULE 6: POL-HIGH-VALUE (Precedence 6)
     # Amounts >= ₹50,000 require human operator review for automated retries
     # -------------------------------------------------------------------------
-    if (
-        payment.amount >= HIGH_VALUE_THRESHOLD_PAISE
-        and action_type in {
-            RecoveryActionType.RETRY_PAYMENT.value,
-            RecoveryActionType.RETRY_PAYMENT,
-        }
-    ):
+    if payment.amount >= HIGH_VALUE_THRESHOLD_PAISE and action_type in {
+        RecoveryActionType.RETRY_PAYMENT.value,
+        RecoveryActionType.RETRY_PAYMENT,
+    }:
         return PolicyEvaluationOutcome(
             evaluation_result=PolicyEvaluationResult.HUMAN_REVIEW,
             policy_engine_version=POLICY_ENGINE_VERSION,

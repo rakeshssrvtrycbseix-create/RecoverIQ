@@ -175,9 +175,7 @@ def test_missing_event_id_rejected(client: TestClient):
     assert "Missing X-Razorpay-Event-Id" in response.json()["detail"]
 
 
-def test_valid_event_persisted_in_database(
-    client: TestClient, db_session: Session
-):
+def test_valid_event_persisted_in_database(client: TestClient, db_session: Session):
     """5. Test that valid webhook payload is persisted in payment_events table."""
     payload_dict = sample_subscription_halted_payload()
     raw_body = json.dumps(payload_dict).encode("utf-8")
@@ -202,8 +200,7 @@ def test_valid_event_persisted_in_database(
     assert stored_event.source == PaymentEventSource.RAZORPAY_WEBHOOK.value
     assert stored_event.razorpay_event_id == event_id
     assert (
-        stored_event.processing_status
-        == PaymentEventProcessingStatus.PROCESSED.value
+        stored_event.processing_status == PaymentEventProcessingStatus.PROCESSED.value
     )
     assert stored_event.payload["event"] == "subscription.halted"
 
@@ -234,9 +231,7 @@ def test_duplicate_event_returns_200_and_does_not_duplicate_row(
     assert resp2.json()["is_duplicate"] is True
 
     # Count rows in DB
-    count = (
-        db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).count()
-    )
+    count = db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).count()
     assert count == 1
 
 
@@ -298,16 +293,12 @@ def test_tampered_payload_fails_verification(client: TestClient):
         "Content-Type": "application/json",
     }
 
-    response = client.post(
-        "/webhooks/razorpay", content=tampered_body, headers=headers
-    )
+    response = client.post("/webhooks/razorpay", content=tampered_body, headers=headers)
     assert response.status_code == 401
     assert "Invalid webhook signature" in response.json()["detail"]
 
 
-def test_webhook_secret_not_exposed_in_logs_or_response(
-    client: TestClient, caplog
-):
+def test_webhook_secret_not_exposed_in_logs_or_response(client: TestClient, caplog):
     """10. Test that webhook secret is never leaked into logs or HTTP response."""
     caplog.set_level(logging.DEBUG)
     payload_dict = sample_payment_failed_payload()
@@ -329,9 +320,7 @@ def test_webhook_secret_not_exposed_in_logs_or_response(
     assert TEST_WEBHOOK_SECRET not in response.text
 
 
-def test_unknown_event_types_persisted_safely(
-    client: TestClient, db_session: Session
-):
+def test_unknown_event_types_persisted_safely(client: TestClient, db_session: Session):
     """11. Test that unhandled event types are safely ingested without error."""
     payload_dict = {
         "entity": "event",
@@ -351,9 +340,7 @@ def test_unknown_event_types_persisted_safely(
     response = client.post("/webhooks/razorpay", content=raw_body, headers=headers)
     assert response.status_code == 200
 
-    stored = (
-        db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
-    )
+    stored = db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
     assert stored is not None
     assert stored.event_type == "custom.experimental.event"
 
@@ -401,10 +388,7 @@ def test_unconfigured_webhook_secret_returns_500(db_session: Session):
             "/webhooks/razorpay", content=raw_body, headers=headers
         )
         assert response.status_code == 500
-        assert (
-            "Webhook secret not configured on server"
-            in response.json()["detail"]
-        )
+        assert "Webhook secret not configured on server" in response.json()["detail"]
 
     app.dependency_overrides.clear()
 
@@ -432,9 +416,7 @@ def test_sensitive_field_sanitization_masks_email_and_phone(
     response = client.post("/webhooks/razorpay", content=raw_body, headers=headers)
     assert response.status_code == 200
 
-    stored = (
-        db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
-    )
+    stored = db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
     assert stored is not None
     payment_entity = stored.payload["payload"]["payment"]["entity"]
 
@@ -462,9 +444,7 @@ def test_secret_like_fields_redacted_if_present_in_payload_or_notes(
     response = client.post("/webhooks/razorpay", content=raw_body, headers=headers)
     assert response.status_code == 200
 
-    stored = (
-        db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
-    )
+    stored = db_session.query(PaymentEvent).filter_by(idempotency_key=event_id).first()
     assert stored is not None
     notes = stored.payload["payload"]["payment"]["entity"]["notes"]
     assert notes["auth_token"] == "[REDACTED]"
@@ -476,18 +456,9 @@ def test_sanitizer_does_not_modify_event_id_or_payment_id():
     payload = sample_payment_failed_payload()
     sanitized = sanitize_razorpay_payload(payload)
 
-    assert (
-        sanitized["payload"]["payment"]["entity"]["id"]
-        == "pay_test_failed_001"
-    )
-    assert (
-        sanitized["payload"]["payment"]["entity"]["order_id"]
-        == "order_test_001"
-    )
-    assert (
-        sanitized["payload"]["payment"]["entity"]["customer_id"]
-        == "cust_test_001"
-    )
+    assert sanitized["payload"]["payment"]["entity"]["id"] == "pay_test_failed_001"
+    assert sanitized["payload"]["payment"]["entity"]["order_id"] == "order_test_001"
+    assert sanitized["payload"]["payment"]["entity"]["customer_id"] == "cust_test_001"
     assert sanitized["event"] == "payment.failed"
 
 
@@ -530,9 +501,7 @@ def test_database_failure_does_not_return_false_success(client: TestClient):
         "app.services.payment_event_service.PaymentEventService.ingest_event",
         side_effect=RuntimeError("Database connection dropped"),
     ):
-        response = client.post(
-            "/webhooks/razorpay", content=raw_body, headers=headers
-        )
+        response = client.post("/webhooks/razorpay", content=raw_body, headers=headers)
         assert response.status_code == 500
         assert "Failed to persist webhook event" in response.json()["detail"]
 

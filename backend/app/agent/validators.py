@@ -85,9 +85,7 @@ def _recursive_inspect_payload(data: Any, path: str = "payload") -> None:
 def _inspect_string_content(text: str, path: str) -> None:
     """Inspect raw text content for email, card numbers, or secret tokens."""
     if EMAIL_PATTERN.search(text):
-        raise UnsafeAIOutputError(
-            f"Unsafe AI output: Email address detected at {path}"
-        )
+        raise UnsafeAIOutputError(f"Unsafe AI output: Email address detected at {path}")
     digits_only = re.sub(r"\D", "", text)
     if len(digits_only) >= 13 and CARD_PATTERN.search(text):
         raise UnsafeAIOutputError(

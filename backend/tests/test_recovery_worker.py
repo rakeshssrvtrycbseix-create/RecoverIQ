@@ -1,20 +1,15 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.models import (
-    ActionResult,
     AgentDecision,
     AuditLog,
     Customer,
     CustomerRiskTier,
     Payment,
-    PaymentAttempt,
-    PaymentAttemptStatus,
     PaymentStatus,
     PolicyDecision,
     PolicyEvaluationResult,
@@ -26,8 +21,8 @@ from app.models import (
     RecoveryStage,
 )
 from app.providers.base import ProviderResult
-from app.workers.recovery_worker import RecoveryWorker, recovery_worker
-from app.workers.runner import WorkerRunner, worker_runner
+from app.workers.recovery_worker import RecoveryWorker
+from app.workers.runner import WorkerRunner
 from app.workers.telemetry import worker_telemetry
 
 
@@ -282,7 +277,8 @@ def test_one_failed_action_does_not_stop_processing_of_other_actions(
 
     worker = RecoveryWorker()
     results = worker.poll_and_dispatch(
-        db=db_session, provider=SelectiveFailingProvider()  # type: ignore
+        db=db_session,
+        provider=SelectiveFailingProvider(),  # type: ignore
     )
 
     # Action 1 resulted in FAILED, but Action 2 completed successfully

@@ -107,13 +107,10 @@ class MockAIProvider:
 
         # 4. High recovery probability (soft/transient failure)
         if ml and (
-            ml.priority == "HIGH_RECOVERY_POTENTIAL"
-            or ml.recovery_probability >= 0.75
+            ml.priority == "HIGH_RECOVERY_POTENTIAL" or ml.recovery_probability >= 0.75
         ):
             pred_delay = (
-                ml.predicted_delay_hours
-                if ml.predicted_delay_hours is not None
-                else 2
+                ml.predicted_delay_hours if ml.predicted_delay_hours is not None else 2
             )
             return AgentDecisionOutput(
                 proposed_action_type=RecoveryActionType.RETRY_PAYMENT,
