@@ -64,3 +64,5 @@ ml/data/*.parquet
 *.sqlite
 *.sqlite3
 scratch/
+.ruff_cache/
+tsconfig.tsbuildinfo

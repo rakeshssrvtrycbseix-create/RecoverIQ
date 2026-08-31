@@ -74,7 +74,12 @@ def test_alembic_migration_from_empty_database_and_upgrade():
         db_path = os.path.join(tmpdir, "alembic_test.db")
         db_url = f"sqlite:///{db_path}"
 
-        alembic_cfg = Config("alembic.ini")
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ini_path = os.path.join(backend_dir, "alembic.ini")
+        alembic_cfg = Config(ini_path)
+        alembic_cfg.set_main_option(
+            "script_location", os.path.join(backend_dir, "alembic")
+        )
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
 
         # Run upgrade
