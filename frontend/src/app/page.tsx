@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import CaseDetailModal from "./../components/CaseDetailModal";
 import ChartsSection from "./../components/Charts";
@@ -18,7 +18,7 @@ export default function DashboardOverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -33,12 +33,35 @@ export default function DashboardOverviewPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 15000); // 15s auto-refresh
-    return () => clearInterval(interval);
+    let ignore = false;
+    async function execute() {
+      try {
+        const data = await fetchRecoveryMetrics();
+        if (!ignore) {
+          setMetrics(data);
+          setError(null);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to connect to RecoverIQ API"
+          );
+          setLoading(false);
+        }
+      }
+    }
+    execute();
+    const interval = setInterval(execute, 15000); // 15s auto-refresh
+    return () => {
+      ignore = true;
+      clearInterval(interval);
+    };
   }, []);
 
   return (

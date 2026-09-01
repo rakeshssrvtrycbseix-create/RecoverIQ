@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   approveHumanReview,
   dismissHumanReview,
@@ -22,14 +22,10 @@ export default function HumanReviewModal({
   onClose,
   onSuccess,
 }: HumanReviewModalProps) {
-  const [session, setSession] = useState<UserSession | null>(null);
+  const [session] = useState<UserSession>(getStoredSession);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSession(getStoredSession());
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

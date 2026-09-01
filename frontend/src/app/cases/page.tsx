@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import CaseDetailModal from "../../components/CaseDetailModal";
 import Navbar from "../../components/Navbar";
 import {
@@ -22,7 +22,7 @@ export default function RecoveryCasesPage() {
   const [search, setSearch] = useState<string>("");
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
 
-  const loadCases = async () => {
+  const loadCases = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -41,11 +41,38 @@ export default function RecoveryCasesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, status, recoveryStage, search]);
 
   useEffect(() => {
-    loadCases();
-  }, [page, status, recoveryStage]);
+    let ignore = false;
+    async function execute() {
+      try {
+        const res = await fetchRecoveryCases({
+          page,
+          page_size: 15,
+          status: status || undefined,
+          recovery_stage: recoveryStage || undefined,
+          search: search || undefined,
+        });
+        if (!ignore) {
+          setData(res);
+          setError(null);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load recovery cases"
+          );
+          setLoading(false);
+        }
+      }
+    }
+    execute();
+    return () => {
+      ignore = true;
+    };
+  }, [page, status, recoveryStage, search]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

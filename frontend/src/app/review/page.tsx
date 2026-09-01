@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import CaseDetailModal from "../../components/CaseDetailModal";
 import HumanReviewModal from "../../components/HumanReviewModal";
 import Navbar from "../../components/Navbar";
@@ -14,7 +14,7 @@ import { getStoredSession, UserSession } from "../../lib/auth";
 
 export default function HumanReviewQueuePage() {
   const [queue, setQueue] = useState<PaginatedHumanReviewResponse | null>(null);
-  const [session, setSession] = useState<UserSession | null>(null);
+  const [session] = useState<UserSession>(getStoredSession);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function HumanReviewQueuePage() {
     action: "APPROVE" | "DISMISS";
   } | null>(null);
 
-  const loadQueue = async () => {
+  const loadQueue = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -41,11 +41,33 @@ export default function HumanReviewQueuePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    setSession(getStoredSession());
-    loadQueue();
+    let ignore = false;
+    async function execute() {
+      try {
+        const data = await fetchHumanReviewQueue();
+        if (!ignore) {
+          setQueue(data);
+          setError(null);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to load human review queue"
+          );
+          setLoading(false);
+        }
+      }
+    }
+    execute();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const handleActionSuccess = (msg: string) => {
@@ -241,7 +263,7 @@ export default function HumanReviewQueuePage() {
                       </div>
                       {item.ai_reasoning_summary && (
                         <p className="text-slate-300 text-[11px] italic">
-                          "{item.ai_reasoning_summary}"
+                          &quot;{item.ai_reasoning_summary}&quot;
                         </p>
                       )}
                     </div>

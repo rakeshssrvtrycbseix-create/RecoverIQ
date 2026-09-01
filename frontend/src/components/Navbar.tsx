@@ -1,17 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getStoredSession, loginAs, UserRole, UserSession } from "../lib/auth";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const [session, setSession] = useState<UserSession | null>(null);
-
-  useEffect(() => {
-    setSession(getStoredSession());
-  }, []);
+  const [session, setSession] = useState<UserSession>(getStoredSession);
 
   const handleRoleChange = async (role: UserRole) => {
     try {

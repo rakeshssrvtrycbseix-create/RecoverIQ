@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   fetchMLGovernanceSummary,
   fetchMLModels,
@@ -76,10 +76,6 @@ export default function MLGovernanceTab() {
   const [evalSampleSize, setEvalSampleSize] = useState<number>(5000);
   const [evalNotes, setEvalNotes] = useState<string>("");
 
-  const [explainModalOpen, setExplainModalOpen] = useState<boolean>(false);
-  const [explainRef, setExplainRef] = useState<string>("CASE-2026-0801");
-  const [customExplainResult, setCustomExplainResult] = useState<ExplainabilityRecord | null>(null);
-
   const [promotionModalOpen, setPromotionModalOpen] = useState<boolean>(false);
   const [candidateVersion, setCandidateVersion] = useState<string>("v1.2-rc");
   const [promotionJustification, setPromotionJustification] = useState<string>("Improved calibration (ECE 0.012) and 1.8% ROC-AUC boost.");
@@ -93,41 +89,12 @@ export default function MLGovernanceTab() {
   const [reportModalOpen, setReportModalOpen] = useState<boolean>(false);
   const [reportCopied, setReportCopied] = useState<boolean>(false);
 
-  // Initial Data Load
-  const loadGlobalData = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const [sumRes, modRes, gateRes, incRes, forRes, repRes] = await Promise.all([
-        fetchMLGovernanceSummary().catch(() => null),
-        fetchMLModels().catch(() => []),
-        fetchMLReadinessGates().catch(() => []),
-        fetchMLIncidents().catch(() => []),
-        fetchMLFinancialPathForensics().catch(() => null),
-        fetchSignedMLGovernanceReport().catch(() => null),
-      ]);
-
-      setSummary(sumRes);
-      setModels(modRes);
-      setReadinessGates(gateRes);
-      setIncidents(incRes);
-      setForensics(forRes);
-      setSignedReport(repRes);
-
-      if (modRes.length > 0) {
-        const initialId = modRes[0].model_id;
-        setSelectedModelId(initialId);
-        await loadModelData(initialId);
-      }
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to load ML governance telemetry.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [explainModalOpen, setExplainModalOpen] = useState<boolean>(false);
+  const [explainRef, setExplainRef] = useState<string>("case_rec_982134");
+  const [customExplainResult, setCustomExplainResult] = useState<ExplainabilityRecord | null>(null);
 
   // Specific Model Data Load
-  const loadModelData = async (modelId: string) => {
+  const loadModelData = useCallback(async (modelId: string) => {
     setModelLoading(true);
     try {
       const [det, vers, lin, perf, drf, exp, fair, cal, rsk, rlb] = await Promise.all([
@@ -158,11 +125,81 @@ export default function MLGovernanceTab() {
     } finally {
       setModelLoading(false);
     }
-  };
+  }, []);
+
+  // Initial Data Load
+  const loadGlobalData = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const [sumRes, modRes, gateRes, incRes, forRes, repRes] = await Promise.all([
+        fetchMLGovernanceSummary().catch(() => null),
+        fetchMLModels().catch(() => []),
+        fetchMLReadinessGates().catch(() => []),
+        fetchMLIncidents().catch(() => []),
+        fetchMLFinancialPathForensics().catch(() => null),
+        fetchSignedMLGovernanceReport().catch(() => null),
+      ]);
+
+      setSummary(sumRes);
+      setModels(modRes);
+      setReadinessGates(gateRes);
+      setIncidents(incRes);
+      setForensics(forRes);
+      setSignedReport(repRes);
+
+      if (modRes.length > 0) {
+        const initialId = modRes[0].model_id;
+        setSelectedModelId(initialId);
+        await loadModelData(initialId);
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to load ML governance telemetry.");
+    } finally {
+      setLoading(false);
+    }
+  }, [loadModelData]);
 
   useEffect(() => {
-    loadGlobalData();
-  }, []);
+    let ignore = false;
+    async function execute() {
+      try {
+        const [sumRes, modRes, gateRes, incRes, forRes, repRes] = await Promise.all([
+          fetchMLGovernanceSummary().catch(() => null),
+          fetchMLModels().catch(() => []),
+          fetchMLReadinessGates().catch(() => []),
+          fetchMLIncidents().catch(() => []),
+          fetchMLFinancialPathForensics().catch(() => null),
+          fetchSignedMLGovernanceReport().catch(() => null),
+        ]);
+
+        if (!ignore) {
+          setSummary(sumRes);
+          setModels(modRes);
+          setReadinessGates(gateRes);
+          setIncidents(incRes);
+          setForensics(forRes);
+          setSignedReport(repRes);
+          setLoading(false);
+
+          if (modRes.length > 0) {
+            const initialId = modRes[0].model_id;
+            setSelectedModelId(initialId);
+            loadModelData(initialId);
+          }
+        }
+      } catch (err) {
+        if (!ignore) {
+          setErrorMsg(err instanceof Error ? err.message : "Failed to load ML governance telemetry.");
+          setLoading(false);
+        }
+      }
+    }
+    execute();
+    return () => {
+      ignore = true;
+    };
+  }, [loadModelData]);
 
   const handleSelectModel = (modelId: string) => {
     setSelectedModelId(modelId);
@@ -1372,10 +1409,28 @@ export default function MLGovernanceTab() {
                   className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2 text-xs font-mono text-slate-300"
                 />
               </div>
+              {customExplainResult && (
+                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2 font-mono text-xs">
+                  <div className="text-emerald-400 font-bold">Summary: {customExplainResult.contribution_summary}</div>
+                  <div className="space-y-1">
+                    {customExplainResult.top_features?.map((f) => (
+                      <div key={f.feature_name} className="flex justify-between text-slate-300">
+                        <span>{f.feature_name}</span>
+                        <span className={f.direction === "POSITIVE" ? "text-emerald-400" : "text-rose-400"}>
+                          {f.direction === "POSITIVE" ? "+" : "-"}{f.relative_percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setExplainModalOpen(false)}
+                  onClick={() => {
+                    setExplainModalOpen(false);
+                    setCustomExplainResult(null);
+                  }}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white"
                 >
                   Close

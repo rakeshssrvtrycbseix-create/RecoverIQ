@@ -782,7 +782,7 @@ export interface EstimatedStrategyUplift {
 
 export interface ComparablePopulationMetadata {
   total_cases_analyzed: number;
-  matching_criteria: Record<string, any>;
+  matching_criteria: Record<string, unknown>;
   segmentation_level_used: string;
   filter_summary: string;
 }
@@ -1026,7 +1026,7 @@ export interface StrategyActivationResponse {
   strategy_type: string;
   status: string;
   rollout_percentage: number;
-  target_segment: Record<string, any> | null;
+  target_segment: Record<string, unknown> | null;
   model_version: string;
   governance_version: string;
   effective_from: string;
@@ -1081,7 +1081,7 @@ export async function fetchStrategyActivationDetail(
 
 export async function createStrategyActivation(
   recommendationId: string,
-  targetSegment?: Record<string, any> | null,
+  targetSegment?: Record<string, unknown> | null,
   notes?: string
 ): Promise<StrategyActivationResponse> {
   const headers = await getAuthHeaders();
@@ -1200,8 +1200,8 @@ export async function activateStrategyRollout(
 export interface PromotionCheckItem {
   rule: string;
   passed: boolean;
-  value?: any;
-  required?: any;
+  value?: unknown;
+  required?: unknown;
   message?: string;
 }
 
@@ -1954,8 +1954,8 @@ export interface StatisticalSignificanceReport {
 export interface ReadinessGateResult {
   gate_code: string;
   passed: boolean;
-  observed_value: any;
-  threshold: any;
+  observed_value: unknown;
+  threshold: unknown;
   explanation: string;
 }
 
@@ -2290,9 +2290,9 @@ export interface LearningTrigger {
   trigger_type: string;
   triggered: boolean;
   severity: string;
-  threshold?: any;
-  observed_value?: any;
-  evidence: Record<string, any>;
+  threshold?: unknown;
+  observed_value?: unknown;
+  evidence: Record<string, unknown>;
 }
 
 export interface LearningDiagnostic {
@@ -2327,8 +2327,8 @@ export interface TrainingRun {
   started_at: string;
   completed_at: string | null;
   status: string;
-  validation_result: Record<string, any> | null;
-  governance_result: Record<string, any> | null;
+  validation_result: Record<string, unknown> | null;
+  governance_result: Record<string, unknown> | null;
   notes: string | null;
 }
 
@@ -2348,8 +2348,8 @@ export interface ModelLineageNode {
 export interface ContinuousLearningSafetyGateResult {
   gate_code: string;
   passed: boolean;
-  observed_value: any;
-  threshold: any;
+  observed_value: unknown;
+  threshold: unknown;
   explanation: string;
 }
 
@@ -2512,7 +2512,7 @@ export interface SubsystemHealth {
   status: SubsystemHealthStatus;
   score: number;
   summary: string;
-  metrics: Record<string, any>;
+  metrics: Record<string, unknown>;
 }
 
 export interface IntelligenceHealthScoreBreakdown {
@@ -2533,8 +2533,8 @@ export interface ControlPlaneDiagnostic {
   code: string;
   severity: ControlPlaneDiagnosticSeverity;
   source_phase: string;
-  observed_value?: any;
-  threshold?: any;
+  observed_value?: unknown;
+  threshold?: unknown;
   explanation: string;
   recommended_operator_action: string;
 }
@@ -2548,7 +2548,7 @@ export interface IntelligenceIncident {
   title: string;
   first_detected: string;
   last_detected: string;
-  evidence: Record<string, any>;
+  evidence: Record<string, unknown>;
   recommended_action: string;
   requires_human_review: boolean;
 }
@@ -2575,7 +2575,7 @@ export interface UnifiedLineageNode {
   stage: LineageStageType;
   identifier: string;
   status: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   parent_stage?: string | null;
   parent_identifier?: string | null;
   created_at: string;
@@ -2603,7 +2603,7 @@ export interface DecisionTraceStage {
   stage_name: string;
   timestamp?: string | null;
   status: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 }
 
 export interface CaseDecisionTrace {
@@ -2614,18 +2614,18 @@ export interface CaseDecisionTrace {
   recovered_amount_paise: number;
   opened_at: string;
   resolved_at?: string | null;
-  failure_event: Record<string, any>;
+  failure_event: Record<string, unknown>;
   feature_snapshot: DecisionTraceFeatureSnapshot;
   model_version: string;
   prediction_probability: number;
   prediction_timestamp?: string | null;
-  agent_decision?: Record<string, any> | null;
-  policy_decision?: Record<string, any> | null;
-  selected_strategy?: Record<string, any> | null;
-  experiment_assignment?: Record<string, any> | null;
-  rollout_assignment?: Record<string, any> | null;
-  action_metadata?: Record<string, any> | null;
-  final_action_result?: Record<string, any> | null;
+  agent_decision?: Record<string, unknown> | null;
+  policy_decision?: Record<string, unknown> | null;
+  selected_strategy?: Record<string, unknown> | null;
+  experiment_assignment?: Record<string, unknown> | null;
+  rollout_assignment?: Record<string, unknown> | null;
+  action_metadata?: Record<string, unknown> | null;
+  final_action_result?: Record<string, unknown> | null;
   final_recovery_outcome: string;
   stages: DecisionTraceStage[];
   traced_at: string;
@@ -2634,15 +2634,15 @@ export interface CaseDecisionTrace {
 
 export interface GovernanceCenterResponse {
   pending_strategy_recommendations_count: number;
-  pending_strategy_recommendations: any[];
+  pending_strategy_recommendations: Record<string, unknown>[];
   pending_model_reviews_count: number;
-  pending_model_reviews: any[];
+  pending_model_reviews: Record<string, unknown>[];
   pending_deployment_reviews_count: number;
-  pending_deployment_reviews: any[];
-  rollback_alerts: any[];
-  learning_alerts: any[];
+  pending_deployment_reviews: Record<string, unknown>[];
+  rollback_alerts: Record<string, unknown>[];
+  learning_alerts: Record<string, unknown>[];
   critical_diagnostics: ControlPlaneDiagnostic[];
-  recent_audit_events: any[];
+  recent_audit_events: Record<string, unknown>[];
   required_operator_actions: string[];
   generated_at: string;
 }
@@ -2751,7 +2751,7 @@ export interface SecurityControlHealth {
   status: "ACTIVE" | "DEGRADED" | "DISABLED" | "BYPASS_PREVENTED";
   description: string;
   enforcement_type: string;
-  metrics: Record<string, any>;
+  metrics: Record<string, unknown>;
 }
 
 export interface SecurityEventResponse {
@@ -2760,7 +2760,7 @@ export interface SecurityEventResponse {
   severity: "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   actor_id: string;
   actor_type: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   created_at: string;
 }
 
@@ -2798,7 +2798,7 @@ export interface PIIScanResponse {
   has_secrets: boolean;
   findings_count: number;
   findings: Array<{ type: string; path: string; description: string }>;
-  sanitized_payload: any;
+  sanitized_payload: unknown;
   scan_timestamp: string;
 }
 
@@ -2855,7 +2855,7 @@ export async function revokeToken(jti: string, reason?: string): Promise<TokenRe
   return res.json();
 }
 
-export async function scanPayloadPII(payload: any): Promise<PIIScanResponse> {
+export async function scanPayloadPII(payload: unknown): Promise<PIIScanResponse> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/recovery/security/scan`, {
     method: "POST",
@@ -2988,7 +2988,7 @@ export interface ComplianceIncident {
   category: ComplianceControlCategory;
   title: string;
   description: string;
-  evidence: Record<string, any>;
+  evidence: Record<string, unknown>;
   affected_entity_type: string;
   affected_entity_id: string | null;
   detected_at: string;
@@ -3194,7 +3194,7 @@ export interface ResilienceIncident {
   resolved_at: string | null;
   affected_services: string[];
   root_cause_category: string;
-  evidence: Record<string, any>;
+  evidence: Record<string, unknown>;
   operator: string | null;
   rto_impact_seconds: number | null;
   rpo_impact_seconds: number | null;
@@ -3410,7 +3410,7 @@ export async function fetchResilienceRunbooks(): Promise<RecoveryRunbook[]> {
   return res.json();
 }
 
-export async function fetchResilienceSimulations(): Promise<Record<string, any>[]> {
+export async function fetchResilienceSimulations(): Promise<Record<string, unknown>[]> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/recovery/intelligence/resilience/simulations`, {
     headers,
@@ -3427,7 +3427,7 @@ export async function runResilienceSimulation(
   severityOverride?: string
 ): Promise<DisasterSimulationResult> {
   const headers = await getAuthHeaders();
-  const body: Record<string, any> = { scenario_type: scenarioType };
+  const body: Record<string, unknown> = { scenario_type: scenarioType };
   if (severityOverride && severityOverride !== "DEFAULT") {
     body.severity_override = severityOverride;
   }
@@ -3472,7 +3472,7 @@ export async function escalateResilienceIncident(incidentId: string): Promise<Re
   return res.json();
 }
 
-export async function verifyResilienceRecovery(): Promise<Record<string, any>> {
+export async function verifyResilienceRecovery(): Promise<Record<string, unknown>> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/recovery/intelligence/resilience/recovery/verify`, {
     method: "POST",
@@ -3560,7 +3560,7 @@ export interface ObservabilityAlert {
   last_detected: string;
   occurrence_count: number;
   status: string;
-  evidence: Record<string, any>;
+  evidence: Record<string, unknown>;
 }
 
 export interface IncidentTimelineEvent {
@@ -3590,7 +3590,7 @@ export interface ObservabilityIncident {
   root_cause_category: string;
   root_cause_confidence: string;
   timeline: IncidentTimelineEvent[];
-  evidence: Record<string, any>;
+  evidence: Record<string, unknown>;
 }
 
 export interface TraceSpan {
@@ -3624,7 +3624,7 @@ export interface DeploymentImpact {
   error_rate_delta_pct: number;
   slo_delta_pct: number;
   rollback_recommended: boolean;
-  evidence: Record<string, any>;
+  evidence: Record<string, unknown>;
 }
 
 export interface OperationalReadinessGate {
@@ -4211,7 +4211,7 @@ export interface DataLineageNode {
   schema_version: string;
   checksum: string;
   timestamp: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface DataLineageEdge {
@@ -4298,7 +4298,7 @@ export interface DataQualityMetric {
   anomaly_rate_pct: number;
   score: number;
   status: DataQualityStatus;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 }
 
 export interface DataGovernancePIIScanFinding {
@@ -4600,7 +4600,7 @@ export async function fetchDataGovernanceReport(): Promise<DataGovernanceReport>
   return res.json();
 }
 
-export async function runDataGovernancePIIScan(payload: any): Promise<DataGovernancePIIScanResponse> {
+export async function runDataGovernancePIIScan(payload: unknown): Promise<DataGovernancePIIScanResponse> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/recovery/intelligence/data-governance/scan`, {
     method: "POST",
@@ -4850,7 +4850,7 @@ export interface WebhookPerformance {
   duplicate_rate_pct: number;
   backlog_age_sec: number;
   drain_time_sec: number;
-  burst_scenarios: Record<string, any>;
+  burst_scenarios: Record<string, unknown>;
 }
 
 export interface BottleneckFinding {
@@ -4872,12 +4872,12 @@ export interface PerformanceIncident {
   status: PerformanceIncidentStatus;
   detection_timestamp: string;
   affected_subsystem: string;
-  observed_metrics: Record<string, any>;
+  observed_metrics: Record<string, unknown>;
   threshold: string;
   impact: string;
   probable_cause: string;
   recommended_mitigation: string;
-  lifecycle_events: Array<Record<string, any>>;
+  lifecycle_events: Array<Record<string, unknown>>;
 }
 
 export interface LoadTestRequest {
@@ -5334,7 +5334,7 @@ export interface DeploymentObservation {
   target_version: string;
   status: ReleaseStatus;
   observed_at: string;
-  health_metrics: Record<string, any>;
+  health_metrics: Record<string, unknown>;
 }
 
 export interface CanaryEvaluation {
@@ -5392,7 +5392,7 @@ export interface ReleaseLineageNode {
   actor: string;
   timestamp: string;
   evidence_hash: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 }
 
 export interface ReleaseCandidate {
@@ -5906,7 +5906,7 @@ export interface SecurityIncident {
   recommended_action: SecurityResponseType;
   human_authorization_required: boolean;
   evidence_fingerprint: string;
-  timeline: Record<string, any>[];
+  timeline: Record<string, unknown>[];
 }
 
 export interface ZeroTrustGate {
@@ -5928,7 +5928,7 @@ export interface SecurityEvidenceNode {
   event_type: string;
   source_service: string;
   timestamp: string;
-  sanitized_payload: Record<string, any>;
+  sanitized_payload: Record<string, unknown>;
   signature: string;
 }
 
@@ -6413,7 +6413,7 @@ export interface FinOpsIncident {
   assigned_operator: string;
   recommended_action: string;
   evidence_fingerprint: string;
-  timeline: Array<Record<string, any>>;
+  timeline: Array<Record<string, unknown>>;
 }
 
 export interface FinOpsReadinessGate {

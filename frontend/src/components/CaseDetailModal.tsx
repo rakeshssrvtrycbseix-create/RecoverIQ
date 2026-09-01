@@ -279,7 +279,7 @@ export default function CaseDetailModal({
                       </span>
                     </div>
                     <div className="mt-2 rounded bg-slate-900/80 p-2 text-[11px] text-slate-300 italic border border-slate-800">
-                      "{detail.agent_decisions[0].reasoning_summary}"
+                      &quot;{detail.agent_decisions[0].reasoning_summary}&quot;
                     </div>
                   </div>
                 )}

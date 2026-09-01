@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import CaseDetailModal from "../../components/CaseDetailModal";
 import Navbar from "../../components/Navbar";
 import {
@@ -20,7 +20,7 @@ export default function AuditTrailPage() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
 
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -38,11 +38,37 @@ export default function AuditTrailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, eventType, caseId]);
 
   useEffect(() => {
-    loadLogs();
-  }, [page, eventType]);
+    let ignore = false;
+    async function execute() {
+      try {
+        const res = await fetchAuditLogs({
+          page,
+          page_size: 20,
+          event_type: eventType || undefined,
+          case_id: caseId || undefined,
+        });
+        if (!ignore) {
+          setData(res);
+          setError(null);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load audit logs"
+          );
+          setLoading(false);
+        }
+      }
+    }
+    execute();
+    return () => {
+      ignore = true;
+    };
+  }, [page, eventType, caseId]);
 
   const handleFilterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
