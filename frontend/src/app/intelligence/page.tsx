@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import Navbar from "../../components/Navbar";
-import { getStoredSession } from "../../lib/auth";
+import { useAuthSession } from "../../lib/auth";
 
 // Domain & Governance Intelligence Components
 import MLGovernanceTab from "../../components/MLGovernanceTab";
@@ -57,13 +57,8 @@ export type IntelligenceTab =
 export default function IntelligencePage() {
   const [activeTab, setActiveTab] = useState<IntelligenceTab>("ml_governance");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [userRole] = useState<string>(() => {
-    try {
-      return getStoredSession().role;
-    } catch {
-      return "ADMIN";
-    }
-  });
+  const { session } = useAuthSession();
+  const userRole = session.role;
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((prev) => prev + 1);

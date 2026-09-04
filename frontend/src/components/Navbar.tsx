@@ -1,18 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getStoredSession, loginAs, UserRole, UserSession } from "../lib/auth";
+import { useAuthSession, UserRole } from "../lib/auth";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const [session, setSession] = useState<UserSession>(getStoredSession);
+  const { session, switchRole, mounted } = useAuthSession();
 
   const handleRoleChange = async (role: UserRole) => {
     try {
-      const updated = await loginAs(`user_${role}`, role);
-      setSession(updated);
+      await switchRole(role);
       window.location.reload(); // Refresh data with updated RBAC token
     } catch (err) {
       console.error("Failed to switch role:", err);
@@ -81,6 +80,7 @@ export default function Navbar() {
               <select
                 value={session.role}
                 onChange={(e) => handleRoleChange(e.target.value as UserRole)}
+                suppressHydrationWarning
                 className="bg-transparent text-xs font-semibold text-indigo-400 focus:outline-none cursor-pointer"
               >
                 <option value="operator" className="bg-slate-950 text-slate-200">

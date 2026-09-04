@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useState } from "react";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -12,6 +14,7 @@ export interface UserSession {
 }
 
 const STORAGE_KEY = "recoveriq_auth_session";
+export const AUTH_CHANGE_EVENT = "recoveriq_auth_change";
 
 // Default pre-authenticated session for seamless evaluation
 const DEFAULT_SESSION: UserSession = {
@@ -42,6 +45,9 @@ export function saveSession(session: UserSession): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    window.dispatchEvent(
+      new CustomEvent(AUTH_CHANGE_EVENT, { detail: session })
+    );
   } catch {
     // Ignore storage write errors
   }
@@ -51,6 +57,9 @@ export function clearSession(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(STORAGE_KEY);
+    window.dispatchEvent(
+      new CustomEvent(AUTH_CHANGE_EVENT, { detail: DEFAULT_SESSION })
+    );
   } catch {
     // Ignore storage clear errors
   }
@@ -98,3 +107,34 @@ export async function ensureValidToken(): Promise<string> {
     return current.access_token;
   }
 }
+
+export function useAuthSession() {
+  const [session, setSession] = useState<UserSession>(DEFAULT_SESSION);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setSession(getStoredSession());
+    setMounted(true);
+
+    const handleAuthChange = () => {
+      setSession(getStoredSession());
+    };
+
+    window.addEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+    window.addEventListener("storage", handleAuthChange);
+
+    return () => {
+      window.removeEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+      window.removeEventListener("storage", handleAuthChange);
+    };
+  }, []);
+
+  const switchRole = useCallback(async (newRole: UserRole) => {
+    const updated = await loginAs(`user_${newRole}`, newRole);
+    setSession(updated);
+    return updated;
+  }, []);
+
+  return { session, switchRole, mounted, isViewer: session.role === "viewer" };
+}
+

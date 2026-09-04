@@ -10,11 +10,11 @@ import {
   HumanReviewQueueItem,
   PaginatedHumanReviewResponse,
 } from "../../lib/api";
-import { getStoredSession, UserSession } from "../../lib/auth";
+import { useAuthSession } from "../../lib/auth";
 
 export default function HumanReviewQueuePage() {
   const [queue, setQueue] = useState<PaginatedHumanReviewResponse | null>(null);
-  const [session] = useState<UserSession>(getStoredSession);
+  const { session, isViewer } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);

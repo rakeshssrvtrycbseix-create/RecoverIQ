@@ -7,7 +7,7 @@ import {
   formatINR,
   HumanReviewQueueItem,
 } from "../lib/api";
-import { getStoredSession, UserSession } from "../lib/auth";
+import { useAuthSession } from "../lib/auth";
 
 interface HumanReviewModalProps {
   item: HumanReviewQueueItem;
@@ -22,7 +22,7 @@ export default function HumanReviewModal({
   onClose,
   onSuccess,
 }: HumanReviewModalProps) {
-  const [session] = useState<UserSession>(getStoredSession);
+  const { session, isViewer } = useAuthSession();
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +139,12 @@ export default function HumanReviewModal({
             </div>
           )}
 
+          {isViewer && (
+            <div className="rounded-lg bg-amber-950/40 border border-amber-800/50 p-3 text-xs text-amber-300">
+              🔒 <strong>Viewer Role (Read-Only):</strong> Your session is authenticated as a Viewer. Switch to an <strong>Operator</strong> or <strong>Admin</strong> role in the navigation bar to authorize or dismiss cases.
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -150,12 +156,12 @@ export default function HumanReviewModal({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || isViewer}
               className={`rounded-lg px-4 py-2 text-xs font-bold text-white shadow-lg transition-all ${
                 isApprove
                   ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20"
                   : "bg-rose-600 hover:bg-rose-500 shadow-rose-600/20"
-              } ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
+              } ${submitting || isViewer ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {submitting
                 ? "Submitting..."
