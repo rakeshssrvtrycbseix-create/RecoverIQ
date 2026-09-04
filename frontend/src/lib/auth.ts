@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -108,33 +108,51 @@ export async function ensureValidToken(): Promise<string> {
   }
 }
 
+function subscribeAuth(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(AUTH_CHANGE_EVENT, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(AUTH_CHANGE_EVENT, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+let cachedSession: UserSession = DEFAULT_SESSION;
+let cachedRaw: string | null = null;
+
+function getClientSnapshot(): UserSession {
+  if (typeof window === "undefined") return DEFAULT_SESSION;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === cachedRaw) {
+      return cachedSession;
+    }
+    cachedRaw = raw;
+    cachedSession = raw ? (JSON.parse(raw) as UserSession) : DEFAULT_SESSION;
+    return cachedSession;
+  } catch {
+    return DEFAULT_SESSION;
+  }
+}
+
+function getServerSnapshot(): UserSession {
+  return DEFAULT_SESSION;
+}
+
 export function useAuthSession() {
-  const [session, setSession] = useState<UserSession>(DEFAULT_SESSION);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setSession(getStoredSession());
-    setMounted(true);
-
-    const handleAuthChange = () => {
-      setSession(getStoredSession());
-    };
-
-    window.addEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
-    window.addEventListener("storage", handleAuthChange);
-
-    return () => {
-      window.removeEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
-      window.removeEventListener("storage", handleAuthChange);
-    };
-  }, []);
+  const session = useSyncExternalStore(
+    subscribeAuth,
+    getClientSnapshot,
+    getServerSnapshot
+  );
 
   const switchRole = useCallback(async (newRole: UserRole) => {
     const updated = await loginAs(`user_${newRole}`, newRole);
-    setSession(updated);
     return updated;
   }, []);
 
-  return { session, switchRole, mounted, isViewer: session.role === "viewer" };
+  return { session, switchRole, isViewer: session.role === "viewer" };
 }
+
 

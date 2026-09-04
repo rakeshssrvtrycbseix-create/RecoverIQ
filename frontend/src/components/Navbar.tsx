@@ -7,7 +7,7 @@ import { useAuthSession, UserRole } from "../lib/auth";
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { session, switchRole, mounted } = useAuthSession();
+  const { session, switchRole } = useAuthSession();
 
   const handleRoleChange = async (role: UserRole) => {
     try {

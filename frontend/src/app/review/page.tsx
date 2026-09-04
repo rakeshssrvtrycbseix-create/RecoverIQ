@@ -14,7 +14,7 @@ import { useAuthSession } from "../../lib/auth";
 
 export default function HumanReviewQueuePage() {
   const [queue, setQueue] = useState<PaginatedHumanReviewResponse | null>(null);
-  const { session, isViewer } = useAuthSession();
+  const { isViewer } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export default function HumanReviewQueuePage() {
     setTimeout(() => setNotification(null), 6000);
   };
 
-  const isViewerOnly = session?.role === "viewer";
+  const isViewerOnly = isViewer;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 antialiased">
