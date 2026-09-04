@@ -1832,6 +1832,9 @@ class CostSource(StrEnum):
     OBSERVED_TELEMETRY = "OBSERVED_TELEMETRY"
     DERIVED_METRIC = "DERIVED_METRIC"
     SYNTHETIC_BENCHMARK = "SYNTHETIC_BENCHMARK"
+    RUNTIME_DATABASE = "RUNTIME_DATABASE"
+    UNAVAILABLE = "UNAVAILABLE"
+    NOT_CONNECTED = "NOT_CONNECTED"
 
 
 class CostAllocationMethod(StrEnum):
@@ -1866,6 +1869,8 @@ class ResourceEfficiencyState(StrEnum):
     UNDERUTILIZED = "UNDERUTILIZED"
     OVERPROVISIONED = "OVERPROVISIONED"
     SATURATED = "SATURATED"
+    UNAVAILABLE = "UNAVAILABLE"
+    NOT_CONNECTED = "NOT_CONNECTED"
 
 
 class BudgetState(StrEnum):
@@ -1884,6 +1889,7 @@ class ForecastState(StrEnum):
     SLIGHT_DEVIATION = "SLIGHT_DEVIATION"
     ELEVATED_GROWTH = "ELEVATED_GROWTH"
     CRITICAL_OVERRUN = "CRITICAL_OVERRUN"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
 
 
 class CostAnomalyType(StrEnum):
@@ -2028,6 +2034,7 @@ class FinOpsGateStatus(StrEnum):
     WARN = "WARN"
     FAIL = "FAIL"
     BLOCKED = "BLOCKED"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 # ============================================================================

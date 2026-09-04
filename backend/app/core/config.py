@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     # Provider & Live Action Governance
     recovery_provider: str = "mock"  # "mock" | "razorpay"
+    finops_data_mode: str = "runtime"  # "runtime" | "demo"
     allow_live_financial_actions: bool = False
     action_reconciliation_timeout_minutes: int = 15
 

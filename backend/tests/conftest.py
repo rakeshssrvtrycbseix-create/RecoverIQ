@@ -58,6 +58,7 @@ def test_settings() -> Settings:
     return Settings(
         database_url="sqlite:///:memory:",
         razorpay_webhook_secret=TEST_WEBHOOK_SECRET,
+        finops_data_mode="demo",
     )
 
 

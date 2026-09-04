@@ -72,6 +72,10 @@ class FinOpsScoreBreakdown(BaseModel):
         ..., ge=0.0, le=100.0, description="Deterministic 10-Factor Composite Score"
     )
     classification: FinOpsHealth = Field(..., description="Classification category")
+    component_sources: dict[str, str] = Field(
+        default_factory=dict,
+        description="Data provenance source for each score component ('runtime' | 'demo' | 'derived')",
+    )
 
 
 class ServiceCostMetric(BaseModel):
@@ -112,6 +116,18 @@ class ServiceCostMetric(BaseModel):
     efficiency_status: ResourceEfficiencyState = Field(
         ..., description="Current efficiency state"
     )
+    source: str = Field(
+        default="demo",
+        description="Data provenance: 'runtime' | 'demo' | 'derived' | 'estimated' | 'unavailable'",
+    )
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Data provider identifier",
+    )
+    confidence: float = Field(
+        default=1.0,
+        description="Confidence score for this metric",
+    )
 
 
 class CostCategoryBreakdown(BaseModel):
@@ -130,6 +146,14 @@ class CostCategoryBreakdown(BaseModel):
         ..., description="Cost growth trend percentage compared to previous period"
     )
     source: CostSource = Field(..., description="Origin of telemetry")
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Provider identifier",
+    )
+    disclaimer: str | None = Field(
+        default=None,
+        description="Notice if unmetered or estimated",
+    )
 
 
 class CostAllocation(BaseModel):
@@ -150,9 +174,17 @@ class CostAllocation(BaseModel):
         ..., description="Cost metrics for all 11 core services"
     )
     categories: list[CostCategoryBreakdown] = Field(
-        ..., description="Cost metrics by infrastructure category"
+        ..., description="Cost allocation across all 10 infrastructure categories"
     )
     evaluated_at: datetime = Field(..., description="Timestamp of evaluation")
+    data_mode: str = Field(
+        default="demo",
+        description="Data mode: 'runtime' | 'demo'",
+    )
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Data provider identifier",
+    )
 
 
 class BudgetThreshold(BaseModel):
@@ -328,6 +360,18 @@ class ResourceUtilization(BaseModel):
         ..., ge=0.0, le=100.0, description="Estimated unutilized waste percentage"
     )
     state: ResourceEfficiencyState = Field(..., description="Efficiency state")
+    source: str = Field(
+        default="demo",
+        description="Data provenance: 'runtime' | 'demo' | 'derived' | 'estimated' | 'unavailable'",
+    )
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Data provider identifier",
+    )
+    confidence: float = Field(
+        default=1.0,
+        description="Confidence score for this metric",
+    )
 
 
 class ResourceEfficiency(BaseModel):
@@ -345,6 +389,14 @@ class ResourceEfficiency(BaseModel):
         ..., description="Utilization breakdowns per resource type"
     )
     evaluated_at: datetime = Field(..., description="Timestamp of evaluation")
+    data_mode: str = Field(
+        default="demo",
+        description="Data mode: 'runtime' | 'demo'",
+    )
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Data provider identifier",
+    )
 
 
 class WasteFinding(BaseModel):
@@ -508,6 +560,18 @@ class UnitEconomics(BaseModel):
         description="Engineering analytics proxy: Recovered Operational Value Proxy / Infrastructure Cost (Advisory Only)",
     )
     evaluated_at: datetime = Field(..., description="Timestamp of evaluation")
+    data_mode: str = Field(
+        default="demo",
+        description="Data mode: 'runtime' | 'demo'",
+    )
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Data provider identifier",
+    )
+    provenance: dict[str, str] = Field(
+        default_factory=dict,
+        description="Provenance breakdown per sub-metric",
+    )
 
 
 class OptimizationRiskAssessment(BaseModel):
@@ -712,6 +776,18 @@ class FinOpsSummary(BaseModel):
         default="DISABLED", description="Always DISABLED: advisory only"
     )
     evaluated_at: datetime = Field(..., description="Evaluation timestamp")
+    data_mode: str = Field(
+        default="demo",
+        description="Data mode: 'runtime' | 'demo'",
+    )
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Data provider identifier",
+    )
+    provenance: dict[str, str] = Field(
+        default_factory=dict,
+        description="Metric provenance map",
+    )
     disclaimer: str = Field(
         default="RecoverIQ FinOps Control Plane provides observational engineering cost analytics and advisory optimization recommendations. PolicyEngine remains the sole authoritative financial recovery gatekeeper.",
         description="Mandatory advisory disclaimer",
@@ -760,6 +836,18 @@ class FinOpsReport(BaseModel):
     )
     financial_isolation_verified: bool = Field(
         default=True, description="Strictly true"
+    )
+    data_mode: str = Field(
+        default="DEMO",
+        description="DATA MODE: RUNTIME / DEMO",
+    )
+    provider: str = Field(
+        default="DemoFinOpsDataProvider",
+        description="Data provider identifier",
+    )
+    metric_provenance_summary: dict[str, int] = Field(
+        default_factory=dict,
+        description="Counts of Observed, Derived, Estimated, Demo, Unavailable metrics",
     )
 
 

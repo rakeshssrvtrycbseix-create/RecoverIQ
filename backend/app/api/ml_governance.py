@@ -6,7 +6,7 @@ Explainability, Drift Detection & Responsible AI Control Plane.
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -416,7 +416,13 @@ def get_incident(
 ) -> MLIncident:
     """Retrieve details for a specific ML governance incident."""
     service = MLGovernanceService(db)
-    return service.get_incident(incident_id)
+    try:
+        return service.get_incident(incident_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"ML Incident '{incident_id}' not found.",
+        ) from exc
 
 
 @router.post(
@@ -433,9 +439,15 @@ def acknowledge_incident(
 ) -> MLIncident:
     """Acknowledge an open ML incident (Operator or Admin)."""
     service = MLGovernanceService(db)
-    return service.acknowledge_incident(
-        incident_id, notes, actor_id=current_user.id, db=db
-    )
+    try:
+        return service.acknowledge_incident(
+            incident_id, notes, actor_id=current_user.id, db=db
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"ML Incident '{incident_id}' not found.",
+        ) from exc
 
 
 @router.post(
@@ -452,7 +464,13 @@ def resolve_incident(
 ) -> MLIncident:
     """Resolve an ML governance incident (Admin authorization required)."""
     service = MLGovernanceService(db)
-    return service.resolve_incident(incident_id, notes, actor_id=current_user.id, db=db)
+    try:
+        return service.resolve_incident(incident_id, notes, actor_id=current_user.id, db=db)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"ML Incident '{incident_id}' not found.",
+        ) from exc
 
 
 @router.get(
@@ -874,10 +892,16 @@ def action_incident(
 ) -> MLIncident:
     """Action incident."""
     service = MLGovernanceService(db)
-    if request.decision == "RESOLVE":
-        return service.resolve_incident(
+    try:
+        if request.decision == "RESOLVE":
+            return service.resolve_incident(
+                incident_id, request.notes, actor_id=current_user.id, db=db
+            )
+        return service.acknowledge_incident(
             incident_id, request.notes, actor_id=current_user.id, db=db
         )
-    return service.acknowledge_incident(
-        incident_id, request.notes, actor_id=current_user.id, db=db
-    )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"ML Incident '{incident_id}' not found.",
+        ) from exc

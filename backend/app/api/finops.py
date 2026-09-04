@@ -1,5 +1,4 @@
 """REST API Router for Phase 10I: FinOps, Cost Intelligence, Resource Governance,
-
 Unit Economics & Financial Efficiency Control Plane.
 """
 
@@ -9,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.rate_limiter import rate_limit_mutations, rate_limit_reads
 from app.core.security import (
@@ -48,6 +48,16 @@ router = APIRouter(
 )
 
 
+def get_finops_service(
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    mode: str | None = Query(None, description="FinOps data provider mode ('runtime' or 'demo')"),
+) -> FinOpsService:
+    """Resolve FinOpsService with active provider based on mode query param or settings."""
+    active_mode = mode or settings.finops_data_mode
+    return FinOpsService(db=db, mode=active_mode)
+
+
 @router.get(
     "",
     response_model=FinOpsSummary,
@@ -62,10 +72,9 @@ router = APIRouter(
 )
 def get_finops_summary(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> FinOpsSummary:
     """Retrieve executive posture summary of the FinOps Control Plane."""
-    service = FinOpsService(db)
     return service.get_summary()
 
 
@@ -77,10 +86,9 @@ def get_finops_summary(
 )
 def get_finops_score(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> FinOpsScoreBreakdown:
     """Retrieve 10-factor deterministic FinOps Health Score breakdown."""
-    service = FinOpsService(db)
     return service.calculate_score_breakdown()
 
 
@@ -92,10 +100,9 @@ def get_finops_score(
 )
 def get_cluster_cost_allocation(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> CostAllocation:
     """Retrieve cluster-wide cost allocation report across all services and categories."""
-    service = FinOpsService(db)
     return service.get_cost_allocation()
 
 
@@ -107,10 +114,9 @@ def get_cluster_cost_allocation(
 )
 def get_service_costs(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[ServiceCostMetric]:
     """Retrieve cost metrics attributed to each of the 11 core microservices."""
-    service = FinOpsService(db)
     return service.get_service_costs()
 
 
@@ -122,10 +128,9 @@ def get_service_costs(
 )
 def get_category_costs(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[CostCategoryBreakdown]:
     """Retrieve cost breakdown by infrastructure category (Compute, DB, Cache, etc.)."""
-    service = FinOpsService(db)
     return service.get_category_costs()
 
 
@@ -137,10 +142,9 @@ def get_category_costs(
 )
 def get_unit_economics(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> UnitEconomics:
     """Retrieve unit economics metrics (Cost/Txn, Cost/Case, Cost/Prediction, Value Efficiency)."""
-    service = FinOpsService(db)
     return service.get_unit_economics()
 
 
@@ -158,10 +162,9 @@ def get_unit_economics(
 )
 def get_resource_efficiency(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> ResourceEfficiency:
     """Retrieve infrastructure utilization, headroom, and efficiency assessments."""
-    service = FinOpsService(db)
     return service.get_resource_efficiency()
 
 
@@ -179,10 +182,9 @@ def get_resource_efficiency(
 )
 def get_budget_statuses(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[BudgetStatus]:
     """Retrieve active budget allocations, burn rates, and threshold statuses."""
-    service = FinOpsService(db)
     return service.get_budgets()
 
 
@@ -196,10 +198,9 @@ def get_budget_statuses(
 def configure_budget(
     payload: BudgetConfigRequest,
     user: Annotated[AuthenticatedUser, Depends(require_admin)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> BudgetStatus:
     """Configure or update budget limits (Admin authorization required)."""
-    service = FinOpsService(db)
     return service.configure_budget(payload, user.id)
 
 
@@ -211,10 +212,9 @@ def configure_budget(
 )
 def get_cost_forecasts(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> CostForecast:
     """Retrieve deterministic 7D, 30D, 90D cost forecasts across 5 scenarios."""
-    service = FinOpsService(db)
     return service.get_forecasts()
 
 
@@ -227,10 +227,9 @@ def get_cost_forecasts(
 def generate_custom_forecast(
     payload: ForecastGenerateRequest,
     user: Annotated[AuthenticatedUser, Depends(require_operator)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> CostForecast:
     """Generate customized cost projections with simulated traffic multiplier."""
-    service = FinOpsService(db)
     return service.get_forecasts(
         horizon_days=payload.horizon_days,
         traffic_multiplier=payload.traffic_multiplier,
@@ -246,10 +245,9 @@ def generate_custom_forecast(
 )
 def get_cost_anomalies(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[CostAnomaly]:
     """Retrieve detected cost anomalies with cryptographic evidence hashes."""
-    service = FinOpsService(db)
     return service.get_cost_anomalies()
 
 
@@ -261,10 +259,9 @@ def get_cost_anomalies(
 )
 def get_waste_findings(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[WasteFinding]:
     """Retrieve identified infrastructure waste items with potential savings."""
-    service = FinOpsService(db)
     return service.get_waste_findings()
 
 
@@ -276,10 +273,9 @@ def get_waste_findings(
 )
 def get_optimization_recommendations(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[OptimizationRecommendation]:
     """Retrieve advisory resource optimization recommendations."""
-    service = FinOpsService(db)
     return service.get_optimization_recommendations()
 
 
@@ -293,10 +289,9 @@ def approve_optimization_recommendation(
     recommendation_id: str,
     payload: OptimizationApprovalRequest,
     user: Annotated[AuthenticatedUser, Depends(require_admin)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> OptimizationRecommendation:
     """Record human admin approval for an optimization recommendation (Admin only)."""
-    service = FinOpsService(db)
     return service.approve_optimization(
         recommendation_id=recommendation_id,
         decision=payload.decision,
@@ -313,10 +308,9 @@ def approve_optimization_recommendation(
 )
 def get_finops_incidents(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[FinOpsIncident]:
     """Retrieve event-sourced FinOps cost and budget governance incidents."""
-    service = FinOpsService(db)
     return service.get_finops_incidents()
 
 
@@ -329,7 +323,7 @@ def get_finops_incidents(
 def acknowledge_finops_incident(
     incident_id: str,
     user: Annotated[AuthenticatedUser, Depends(require_operator)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
     payload: FinOpsIncidentActionRequest | None = None,
     notes: str | None = Query(None, description="Action notes (query fallback)"),
 ) -> FinOpsIncident:
@@ -337,7 +331,6 @@ def acknowledge_finops_incident(
     action_notes = (
         payload.notes if payload else (notes or "Acknowledged by FinOps operator.")
     )
-    service = FinOpsService(db)
     return service.process_incident_action(
         incident_id=incident_id,
         action_type="ACKNOWLEDGE",
@@ -355,7 +348,7 @@ def acknowledge_finops_incident(
 def escalate_finops_incident(
     incident_id: str,
     user: Annotated[AuthenticatedUser, Depends(require_operator)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
     payload: FinOpsIncidentActionRequest | None = None,
     notes: str | None = Query(None, description="Action notes (query fallback)"),
 ) -> FinOpsIncident:
@@ -363,7 +356,6 @@ def escalate_finops_incident(
     action_notes = (
         payload.notes if payload else (notes or "Escalated for budget impact review.")
     )
-    service = FinOpsService(db)
     return service.process_incident_action(
         incident_id=incident_id,
         action_type="ESCALATE",
@@ -381,7 +373,7 @@ def escalate_finops_incident(
 def resolve_finops_incident(
     incident_id: str,
     user: Annotated[AuthenticatedUser, Depends(require_operator)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
     payload: FinOpsIncidentActionRequest | None = None,
     notes: str | None = Query(None, description="Action notes (query fallback)"),
 ) -> FinOpsIncident:
@@ -389,7 +381,6 @@ def resolve_finops_incident(
     action_notes = (
         payload.notes if payload else (notes or "Cost anomaly mitigated and verified.")
     )
-    service = FinOpsService(db)
     return service.process_incident_action(
         incident_id=incident_id,
         action_type="RESOLVE",
@@ -406,10 +397,9 @@ def resolve_finops_incident(
 )
 def get_finops_readiness_gates(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> list[FinOpsReadinessGate]:
     """Evaluate and return the 20 deterministic FinOps Readiness Gates."""
-    service = FinOpsService(db)
     return service.get_readiness_gates()
 
 
@@ -421,8 +411,7 @@ def get_finops_readiness_gates(
 )
 def get_signed_finops_report(
     user: Annotated[AuthenticatedUser, Depends(require_viewer)],
-    db: Session = Depends(get_db),
+    service: Annotated[FinOpsService, Depends(get_finops_service)],
 ) -> FinOpsReport:
     """Generate authoritative executive FinOps report with SHA-256 HMAC signature."""
-    service = FinOpsService(db)
     return service.generate_signed_report()
