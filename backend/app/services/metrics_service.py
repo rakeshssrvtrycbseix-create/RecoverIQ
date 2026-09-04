@@ -473,21 +473,70 @@ class RecoveryMetricsService:
             .order_by(MLPrediction.predicted_at.asc())
             .all()
         )
-        pred_summaries = [
-            MLPredictionSummary(
-                id=p.id,
-                model_name=p.model_name,
-                model_version=p.model_version,
-                recovery_probability=float(p.recovery_probability),
-                risk_score=float(p.risk_score),
-                confidence=float(p.confidence),
-                priority=p.priority,
-                predicted_channel=p.predicted_channel,
-                predicted_delay_hours=p.predicted_delay_hours,
-                predicted_at=p.predicted_at,
+        pred_summaries = []
+        for p in predictions:
+            snap = (
+                p.feature_vector_snapshot
+                if isinstance(p.feature_vector_snapshot, dict)
+                else {}
             )
-            for p in predictions
-        ]
+            prob = (
+                float(p.recovery_probability)
+                if p.recovery_probability is not None
+                else 0.0
+            )
+
+            # Safe risk_score resolution
+            risk_val = getattr(p, "risk_score", None)
+            if risk_val is None:
+                risk_val = snap.get("risk_score")
+            if risk_val is None:
+                risk_val = round(max(0.0, min(1.0, 1.0 - prob)), 4)
+            else:
+                try:
+                    risk_val = float(risk_val)
+                except (ValueError, TypeError):
+                    risk_val = round(max(0.0, min(1.0, 1.0 - prob)), 4)
+
+            # Safe confidence resolution
+            conf_val = getattr(p, "confidence", None)
+            if conf_val is None:
+                conf_val = snap.get("confidence")
+            if conf_val is None:
+                conf_val = 0.85
+            else:
+                try:
+                    conf_val = float(conf_val)
+                except (ValueError, TypeError):
+                    conf_val = 0.85
+
+            # Safe priority resolution
+            prio_val = getattr(p, "priority", None)
+            if not prio_val:
+                prio_val = snap.get("priority")
+            if not prio_val:
+                prio_val = (
+                    "HIGH_RECOVERY_POTENTIAL"
+                    if prob >= 0.75
+                    else "MEDIUM_RECOVERY_POTENTIAL"
+                    if prob >= 0.40
+                    else "LOW_RECOVERY_POTENTIAL"
+                )
+
+            pred_summaries.append(
+                MLPredictionSummary(
+                    id=p.id,
+                    model_name=p.model_name,
+                    model_version=p.model_version,
+                    recovery_probability=prob,
+                    risk_score=risk_val,
+                    confidence=conf_val,
+                    priority=str(prio_val),
+                    predicted_channel=p.predicted_channel,
+                    predicted_delay_hours=p.predicted_delay_hours,
+                    predicted_at=p.predicted_at,
+                )
+            )
 
         agent_decs = (
             db.query(AgentDecision)

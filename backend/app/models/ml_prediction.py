@@ -90,3 +90,42 @@ class MLPrediction(Base):
         Index("idx_ml_predictions_case_id", "recovery_case_id"),
         Index("idx_ml_predictions_model_version", "model_name", "model_version"),
     )
+
+    @property
+    def risk_score(self) -> float:
+        """Computed or stored risk score for this prediction."""
+        if isinstance(self.feature_vector_snapshot, dict):
+            val = self.feature_vector_snapshot.get("risk_score")
+            if val is not None:
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    pass
+        prob = float(self.recovery_probability) if self.recovery_probability is not None else 0.5
+        return round(max(0.0, min(1.0, 1.0 - prob)), 4)
+
+    @property
+    def confidence(self) -> float:
+        """Computed or stored model inference confidence."""
+        if isinstance(self.feature_vector_snapshot, dict):
+            val = self.feature_vector_snapshot.get("confidence")
+            if val is not None:
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    pass
+        return 0.85
+
+    @property
+    def priority(self) -> str:
+        """Computed or stored priority tier."""
+        if isinstance(self.feature_vector_snapshot, dict):
+            val = self.feature_vector_snapshot.get("priority")
+            if val:
+                return str(val)
+        prob = float(self.recovery_probability) if self.recovery_probability is not None else 0.5
+        if prob >= 0.75:
+            return "HIGH_RECOVERY_POTENTIAL"
+        elif prob >= 0.40:
+            return "MEDIUM_RECOVERY_POTENTIAL"
+        return "LOW_RECOVERY_POTENTIAL"

@@ -563,3 +563,43 @@ def test_unauthenticated_request_audit(db_session: Session):
         assert res.status_code == 401
         assert "Authentication required" in res.json()["detail"]
     app.dependency_overrides.clear()
+
+
+def test_case_detail_with_ml_prediction(client: TestClient, db_session: Session):
+    """
+    Test that cases with associated ML predictions resolve risk_score, confidence,
+    and priority properly without throwing AttributeError.
+    """
+    from app.models.ml_prediction import MLPrediction
+
+    cust, pay, case, _, _ = create_sample_case(db_session)
+
+    # Attach ML Prediction to this case
+    pred = MLPrediction(
+        id=uuid.uuid4(),
+        recovery_case_id=case.id,
+        model_name="xgboost_recovery_v2",
+        model_version="2.4.1",
+        recovery_probability=Decimal("0.8245"),
+        predicted_channel="RETRY_PAYMENT",
+        predicted_delay_hours=2,
+        feature_vector_snapshot={
+            "risk_score": 0.1755,
+            "confidence": 0.91,
+            "priority": "HIGH_RECOVERY_POTENTIAL",
+        },
+    )
+    db_session.add(pred)
+    db_session.commit()
+
+    res = client.get(f"/api/recovery/cases/{case.id}")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["case"]["id"] == str(case.id)
+    assert len(data["predictions"]) == 1
+    p = data["predictions"][0]
+    assert p["model_name"] == "xgboost_recovery_v2"
+    assert p["recovery_probability"] == pytest.approx(0.8245, rel=1e-3)
+    assert p["risk_score"] == pytest.approx(0.1755, rel=1e-3)
+    assert p["confidence"] == pytest.approx(0.91, rel=1e-3)
+    assert p["priority"] == "HIGH_RECOVERY_POTENTIAL"
